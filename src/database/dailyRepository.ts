@@ -34,7 +34,22 @@ async function initializeDatabase() {
 
     CREATE INDEX IF NOT EXISTS idx_daily_checks_date
     ON daily_checks(date);
-  `);
+
+    CREATE TABLE IF NOT EXISTS habits (
+        id TEXT PRIMARY KEY NOT NULL,
+        title TEXT NOT NULL,
+        color TEXT NOT NULL DEFAULT '#90AE98',
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    INSERT OR IGNORE INTO habits (id, title)
+    VALUES
+        ('1', 'Tomar remédio'),
+        ('2', 'Ler'),
+        ('3', 'Exercitar-se'),
+        ('4', 'Estudar');
+    `);
 
   return db;
 }

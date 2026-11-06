@@ -1,5 +1,7 @@
+import React, { useCallback, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { listHabits } from '../database/habitRepository';
 import { debugDatabase } from '../database/dailyRepository';
-import React, { useEffect, useState } from 'react';
 import {
   getDailyData,
   saveDailyCheck,
@@ -32,12 +34,6 @@ const initialGoals = [
   { id: '3', title: 'Organizar meu espaço', done: false },
 ];
 
-const initialHabits = [
-  { id: '1', title: 'Tomar remédio', done: false },
-  { id: '2', title: 'Ler', done: false },
-  { id: '3', title: 'Exercitar-se', done: false },
-  { id: '4', title: 'Estudar', done: false },
-];
 
 function toDateKey(date: Date) {
   const year = date.getFullYear();
@@ -117,7 +113,8 @@ function Section({
 export default function DailyScreen() {
   const [dateKey, setDateKey] = useState(() => toDateKey(new Date()));
   const [goals, setGoals] = useState(initialGoals);
-  const [habits, setHabits] = useState(initialHabits);
+  const [habits, setHabits] = useState<Task[]>([]);
+  const router = useRouter();
   const [notes, setNotes] = useState('');
   const [gratitude, setGratitude] = useState('');
   const [loading, setLoading] = useState(true);
@@ -129,41 +126,59 @@ export default function DailyScreen() {
       console.error('ERRO SQLITE DEBUG:', error);
     }
   };
-  useEffect(() => {
-    let active = true;
+  
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
 
-    setLoading(true);
-    setError(null);
+      setLoading(true);
+      setError(null);
 
-    getDailyData(dateKey)
-      .then((data) => {
-        if (!active) return;
+      async function loadDay() {
+        try {
+          // Inicializa o banco e recupera as marcações do dia.
+          const data = await getDailyData(dateKey);
 
-        setGoals(initialGoals.map((item) => ({
-          ...item,
-          done: data.goals[item.id] ?? false,
-        })));
+          // Consulta os hábitos cadastrados no SQLite.
+          const activeHabits = await listHabits();
 
-        setHabits(initialHabits.map((item) => ({
-          ...item,
-          done: data.habits[item.id] ?? false,
-        })));
+          if (!active) return;
 
-        setNotes(data.notes);
-        setGratitude(data.gratitude);
-        setLoading(false);
-      })
-      .catch((err) => {
-        if (!active) return;
-        console.error('Erro ao carregar diário:', err);
-        setError('Não foi possível carregar os dados do dia.');
-        setLoading(false);
-      });
+          setGoals(
+            initialGoals.map((item) => ({
+              ...item,
+              done: data.goals[item.id] ?? false,
+            }))
+          );
 
-    return () => {
-      active = false;
-    };
-  }, [dateKey]);
+          setHabits(
+            activeHabits.map((habit) => ({
+              id: habit.id,
+              title: habit.title,
+              done: data.habits[habit.id] ?? false,
+            }))
+          );
+
+          setNotes(data.notes);
+          setGratitude(data.gratitude);
+        } catch (err) {
+          if (!active) return;
+
+          console.error('Erro ao carregar diário:', err);
+          setError('Não foi possível carregar os dados do dia.');
+        } finally {
+          if (active) setLoading(false);
+        }
+      }
+
+      void loadDay();
+
+      return () => {
+        active = false;
+      };
+    }, [dateKey])
+  );
+
 
   const showSaveError = (err: unknown) => {
     console.error('Erro ao salvar:', err);
@@ -249,6 +264,20 @@ export default function DailyScreen() {
         <View style={styles.header}>
           <Text style={styles.brand}>dot journal.</Text>
           <Text style={styles.subtitle}>um dia de cada vez ✿</Text>
+          <Pressable
+            onPress={() => router.push('/habits')}
+            style={{
+              backgroundColor: '#E8EDE4',
+              padding: 12,
+              borderRadius: 12,
+              marginTop: 16,
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ color: COLORS.ink, fontWeight: '700' }}>
+              ✿ Gerenciar meus hábitos
+            </Text>
+          </Pressable>
         </View>
 
         <View style={styles.dateCard}>
