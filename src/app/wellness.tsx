@@ -1,7 +1,8 @@
+import KeyboardAwareJournalScrollView from '../components/KeyboardAwareJournalScrollView';
 import DotGridBackground from '../components/DotGridBackground';
 import React, { useCallback, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet,
+  ActivityIndicator, Alert, Pressable, KeyboardAvoidingView, Platform, StyleSheet,
   Text, TextInput, View,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -212,9 +213,11 @@ export default function WellnessScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <DotGridBackground />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareJournalScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}>
         <Pressable onPress={() => router.back()}><Text style={styles.back}>← Voltar</Text></Pressable>
         <Text style={styles.title}>Meu bem-estar ✿</Text>
         <Text style={styles.subtitle}>Sono e tempo de tela, um dia de cada vez.</Text>
@@ -258,8 +261,8 @@ export default function WellnessScreen() {
           </View>
         </View>
         <Text style={styles.note}>Os dados são armazenados apenas no dispositivo. Campos vazios representam dados não registrados, não zero horas.</Text>
-      </ScrollView>
-    </View>
+      </KeyboardAwareJournalScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

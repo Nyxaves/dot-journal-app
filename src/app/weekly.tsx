@@ -1,3 +1,4 @@
+import KeyboardAwareJournalScrollView from '../components/KeyboardAwareJournalScrollView';
 import DotGridBackground from '../components/DotGridBackground';
 
 import React, { useCallback, useState } from 'react';
@@ -5,7 +6,8 @@ import {
   ActivityIndicator,
   Alert,
   Pressable,
-  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -193,11 +195,13 @@ export default function WeeklyScreen() {
   const completed = goals.filter((g) => g.completed).length;
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <DotGridBackground />
-      <ScrollView
+      <KeyboardAwareJournalScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
       >
         <Pressable onPress={() => router.back()}>
           <Text style={styles.back}>← Voltar ao diário</Text>
@@ -385,8 +389,8 @@ export default function WeeklyScreen() {
             </Pressable>
           ))}
         </View>
-      </ScrollView>
-    </View>
+      </KeyboardAwareJournalScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

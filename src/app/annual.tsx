@@ -1,3 +1,4 @@
+import KeyboardAwareJournalScrollView from '../components/KeyboardAwareJournalScrollView';
 import DotGridBackground from '../components/DotGridBackground';
 
 import React, { useCallback, useState } from 'react';
@@ -6,7 +7,8 @@ import {
   ActivityIndicator,
   Alert,
   Pressable,
-  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -16,6 +18,9 @@ import { useFocusEffect, useRouter } from 'expo-router';
 
 import {
   AnnualGoal,
+  ANNUAL_GROUPS,
+  type AnnualGroup,
+  type AnnualSubgroup,
   createAnnualGoal,
   deleteAnnualGoal,
   listAnnualGoals,
@@ -40,6 +45,8 @@ export default function AnnualScreen() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [group, setGroup] = useState<AnnualGroup>('Pessoal');
+  const [subgroup, setSubgroup] = useState<AnnualSubgroup>('Mental');
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -80,6 +87,8 @@ export default function AnnualScreen() {
     setTitle('');
     setDescription('');
     setEditingId(null);
+    setGroup('Pessoal');
+    setSubgroup('Mental');
   }
 
   function changeYear(amount: number) {
@@ -99,9 +108,9 @@ export default function AnnualScreen() {
 
     try {
       if (editingId) {
-        await updateAnnualGoal(editingId, title, description);
+        await updateAnnualGoal(editingId, title, description, group, subgroup);
       } else {
-        await createAnnualGoal(year, title, description);
+        await createAnnualGoal(year, title, description, group, subgroup);
       }
 
       await reload();
@@ -133,6 +142,8 @@ export default function AnnualScreen() {
     setEditingId(goal.id);
     setTitle(goal.title);
     setDescription(goal.description);
+    setGroup(goal.group);
+    setSubgroup(goal.subgroup);
   }
 
   function handleDelete(goal: AnnualGoal) {
@@ -173,11 +184,13 @@ export default function AnnualScreen() {
     : 0;
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <DotGridBackground />
-      <ScrollView
+      <KeyboardAwareJournalScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
       >
         <Pressable onPress={() => router.back()}>
           <Text style={styles.back}>← Voltar ao diário</Text>
@@ -250,6 +263,27 @@ export default function AnnualScreen() {
             maxLength={500}
           />
 
+          <Text style={styles.selectorLabel}>Área</Text>
+          <View style={styles.choiceRow}>
+            {(Object.keys(ANNUAL_GROUPS) as AnnualGroup[]).map((option) => (
+              <Pressable key={option} onPress={() => {
+                setGroup(option);
+                setSubgroup(ANNUAL_GROUPS[option][0]);
+              }} style={[styles.choice, group === option && styles.choiceActive]}>
+                <Text style={styles.choiceText}>{option}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.selectorLabel}>Subcategoria</Text>
+          <View style={styles.choiceRow}>
+            {ANNUAL_GROUPS[group].map((option) => (
+              <Pressable key={option} onPress={() => setSubgroup(option)}
+                style={[styles.choice, subgroup === option && styles.choiceActive]}>
+                <Text style={styles.choiceText}>{option}</Text>
+              </Pressable>
+            ))}
+          </View>
+
           <Pressable
             style={[
               styles.primaryButton,
@@ -287,7 +321,15 @@ export default function AnnualScreen() {
             </Text>
           </View>
         ) : (
-          goals.map((goal) => (
+          (Object.keys(ANNUAL_GROUPS) as AnnualGroup[]).map((area) => (
+            <View key={area}>
+              <Text style={styles.groupHeading}>{area} · {goals.filter((goal) => goal.group === area && goal.completed).length}/{goals.filter((goal) => goal.group === area).length}</Text>
+              {ANNUAL_GROUPS[area].map((section) => {
+                const matching = goals.filter((goal) => goal.group === area && goal.subgroup === section);
+                return (
+                  <View key={section}>
+                    <Text style={styles.subgroupHeading}>{section} ({matching.length})</Text>
+                    {matching.map((goal) => (
             <View key={goal.id} style={styles.goalCard}>
               <Pressable
                 disabled={saving}
@@ -335,10 +377,15 @@ export default function AnnualScreen() {
                 </View>
               </View>
             </View>
+                    ))}
+                  </View>
+                );
+              })}
+            </View>
           ))
         )}
-      </ScrollView>
-    </View>
+      </KeyboardAwareJournalScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -387,6 +434,13 @@ const styles = StyleSheet.create({
     backgroundColor: C.sage,
     borderRadius: 10,
   },
+  selectorLabel: { color: C.ink, fontSize: 13, fontWeight: '700', marginBottom: 8 },
+  choiceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
+  choice: { borderRadius: 10, backgroundColor: '#F1EEE9', paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: C.line },
+  choiceActive: { backgroundColor: '#F7DDE6', borderColor: '#D69AAF' },
+  choiceText: { color: C.ink, fontWeight: '600', fontSize: 12 },
+  groupHeading: { fontSize: 18, fontWeight: '800', color: C.ink, marginTop: 16, marginBottom: 8 },
+  subgroupHeading: { fontSize: 14, fontWeight: '700', color: '#B78498', marginTop: 10, marginBottom: 10 },
   sectionTitle: {
     fontSize: 17,
     fontWeight: '700',
