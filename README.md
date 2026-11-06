@@ -1,77 +1,56 @@
-# ✿ Dot Journal App
+# Welcome to your Expo app 👋
 
-**Seu planejamento, seus hábitos, sua rotina. Um dia de cada vez.**
+This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
-O **Dot Journal App** é um aplicativo mobile de organização pessoal inspirado no método *Bullet Journal*, que transforma a experiência de um caderno de planejamento em uma solução digital, intuitiva e personalizável.
+## Get started
 
-O projeto tem como objetivo centralizar metas, hábitos, compromissos, anotações e planejamento diário, semanal, mensal e anual em um único ambiente.
+1. Install dependencies
 
-Desenvolvido com **React Native, Expo e TypeScript**, o aplicativo utiliza **SQLite** para armazenar informações localmente, permitindo a utilização das funcionalidades implementadas sem depender de conexão com a internet.
+   ```bash
+   npm install
+   ```
 
-O desenvolvimento segue uma metodologia incremental, com versionamento no GitHub, branches dedicadas, commits semânticos, Pull Requests e validação das funcionalidades antes da integração.
+2. Start the app
 
----
+   ```bash
+   npx expo start
+   ```
 
-## 1. Sobre o projeto
+In the output, you'll find options to open the app in a
 
-O Dot Journal App surgiu da ideia de digitalizar um sistema pessoal de organização baseado em cadernos pontilhados (*bullet grid*).
+- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
+- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
+- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
+- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
 
-A proposta é preservar a simplicidade e a liberdade de um Bullet Journal tradicional, acrescentando recursos digitais como:
+You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
-- Organização integrada entre diferentes períodos.
-- Acompanhamento de hábitos e objetivos.
-- Armazenamento automático das informações.
-- Visualização de progresso.
-- Calendários interativos.
-- Planejamento personalizável.
-- Histórico de atividades e conquistas.
+## Get a fresh project
 
-O aplicativo prioriza uma experiência acolhedora, minimalista e funcional, evitando interfaces excessivamente complexas.
+When you're ready, run:
 
-### Objetivos principais
+```bash
+npm run reset-project
+```
 
-- Centralizar a organização pessoal.
-- Facilitar o acompanhamento de hábitos.
-- Incentivar a constância por meio de pequenas metas.
-- Organizar compromissos e datas importantes.
-- Permitir o acompanhamento do progresso.
-- Disponibilizar os registros mesmo sem internet.
-- Evoluir para uma solução com gráficos, estatísticas e sincronização na nuvem.
+This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
 
----
+### Other setup steps
 
-## 2. Funcionalidades implementadas
+- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
+- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
+- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
 
-### 2.1. Planejamento diário
+## Learn more
 
-A página diária é o núcleo principal do aplicativo.
+To learn more about developing your project with Expo, look at the following resources:
 
-**Funcionalidades:**
+- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
+- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
 
-- Navegação entre diferentes datas.
-- Três micro-metas diárias.
-- Checkboxes para conclusão das micro-metas.
-- Lista de hábitos ativos.
-- Barra de progresso dos hábitos.
-- Campo para anotações e atividades do dia.
-- Campo de gratidão.
-- Visualização dos compromissos cadastrados.
-- Horários de início e término dos compromissos.
-- Acesso à agenda de eventos.
-- Salvamento e recuperação das informações pelo SQLite.
+## Join the community
 
-Os registros são independentes por data, permitindo consultar e modificar informações de dias anteriores.
+Join our community of developers creating universal apps.
 
-### 2.2. Micro-metas personalizáveis
-
-Cada dia possui três micro-metas independentes.
-
-O usuário pode:
-
-- Editar o título das micro-metas.
-- Sortear sugestões de pequenas atividades.
-- Substituir uma sugestão por outra.
-- Marcar ou desmarcar a conclusão.
-- Personalizar as metas de diferentes dias.
-
-Exemplos de sugestões
+- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
+- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
