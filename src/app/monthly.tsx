@@ -1,3 +1,4 @@
+import KeyboardAwareJournalScrollView from '../components/KeyboardAwareJournalScrollView';
 import DotGridBackground from '../components/DotGridBackground';
 import {
   listEventsByMonth,
@@ -12,6 +13,8 @@ import {
   ActivityIndicator,
   Pressable,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
   StyleSheet,
   Text,
   View,
@@ -193,9 +196,9 @@ export default function MonthlyScreen() {
   const today = new Date();
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <DotGridBackground />
-      <ScrollView contentContainerStyle={styles.content}>
+      <KeyboardAwareJournalScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}>
         <Pressable onPress={() => router.back()}>
           <Text style={styles.back}>← Voltar</Text>
         </Pressable>
@@ -442,8 +445,8 @@ export default function MonthlyScreen() {
             </Text>
           </View>
         )}
-      </ScrollView>
-    </View>
+      </KeyboardAwareJournalScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

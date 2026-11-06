@@ -1,4 +1,6 @@
+import KeyboardAwareJournalScrollView from '../components/KeyboardAwareJournalScrollView';
 import DotGridBackground from '../components/DotGridBackground';
+import { JOURNAL_PALETTE } from '../theme/journalPalette';
 
 import React, { useCallback, useState } from 'react';
 import {
@@ -6,6 +8,8 @@ import {
   Alert,
   Pressable,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -28,13 +32,7 @@ const COLORS = {
   line: '#E7E1D8',
 };
 
-const PALETTE = [
-  '#90AE98',
-  '#E7C8D3',
-  '#C9C5E8',
-  '#F1D4A7',
-  '#A9CADA',
-];
+const PALETTE = [...JOURNAL_PALETTE];
 
 export default function HabitsScreen() {
   const router = useRouter();
@@ -160,11 +158,13 @@ export default function HabitsScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <DotGridBackground />
-      <ScrollView
+      <KeyboardAwareJournalScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
       >
         <Pressable onPress={() => router.back()}>
           <Text style={styles.back}>← Voltar ao diário</Text>
@@ -191,7 +191,9 @@ export default function HabitsScreen() {
 
           <Text style={styles.label}>Escolha uma cor</Text>
 
-          <View style={styles.colors}>
+          <Text style={styles.paletteHint}>Arraste para o lado para ver todas as cores →</Text>
+          <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator
+            keyboardShouldPersistTaps="handled" contentContainerStyle={styles.colors}>
             {PALETTE.map((item) => (
               <Pressable
                 key={item}
@@ -208,7 +210,7 @@ export default function HabitsScreen() {
                 )}
               </Pressable>
             ))}
-          </View>
+          </ScrollView>
 
           <Pressable
             onPress={() => void handleSave()}
@@ -287,8 +289,8 @@ export default function HabitsScreen() {
             </View>
           ))
         )}
-      </ScrollView>
-    </View>
+      </KeyboardAwareJournalScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -347,9 +349,13 @@ const styles = StyleSheet.create({
   },
   colors: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
-    marginBottom: 22,
+    paddingHorizontal: 4,
+    paddingVertical: 8,
+    paddingRight: 20,
   },
+  paletteHint: { color: '#8F8B90', fontSize: 12, marginBottom: 6 },
   colorCircle: {
     width: 35,
     height: 35,

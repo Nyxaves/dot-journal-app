@@ -1,3 +1,4 @@
+import KeyboardAwareJournalScrollView from '../components/KeyboardAwareJournalScrollView';
 import JournalQuickNav from '../components/JournalQuickNav';
 import DotGridBackground from '../components/DotGridBackground';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -16,7 +17,8 @@ import {
 import {
   View,
   Text,
-  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   TextInput,
   StyleSheet,
@@ -277,12 +279,14 @@ export default function DailyScreen() {
   ).length;
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <DotGridBackground />
       <StatusBar barStyle="dark-content" />
-      <ScrollView
+      <KeyboardAwareJournalScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
       >
         <View style={styles.header}>
           <Text style={styles.brand}>dot journal.</Text>
@@ -510,8 +514,8 @@ export default function DailyScreen() {
             feito de pequenos momentos ♡
           </Text>
         </View>
-      </ScrollView>
-    </View>
+      </KeyboardAwareJournalScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
