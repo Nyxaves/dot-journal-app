@@ -318,19 +318,19 @@ export default function DailyScreen() {
             </Text>
           </Pressable>
           <Pressable
-              onPress={() => router.push('/annual')}
-              style={{
-                backgroundColor: '#f7dde6',
-                padding: 12,
-                borderRadius: 12,
-                marginTop: 10,
-                alignItems: 'center',
-              }}
-            >
-              <Text style={{ color: COLORS.ink, fontWeight: '700' }}>
-                ✿ Meu planejamento anual
-              </Text>
+            onPress={() => router.push('/wellness')}
+            style={{ 
+              backgroundColor: '#E8E4F2', 
+              padding: 12, 
+              borderRadius: 12, 
+              marginTop: 10, 
+              alignItems: 'center' }}
+          >
+            <Text style={{ color: COLORS.ink, fontWeight: '700' }}>
+              ✿ Meu bem-estar
+            </Text>
           </Pressable>
+          
           <Pressable
             onPress={() =>
               router.push({
@@ -377,6 +377,20 @@ export default function DailyScreen() {
             <Text style={{ color: COLORS.ink, fontWeight: '700' }}>
               ✿ Meu planejamento semanal
             </Text>
+          </Pressable>
+          <Pressable
+              onPress={() => router.push('/annual')}
+              style={{
+                backgroundColor: '#f7dde6',
+                padding: 12,
+                borderRadius: 12,
+                marginTop: 10,
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{ color: COLORS.ink, fontWeight: '700' }}>
+                ✿ Meu planejamento anual
+              </Text>
           </Pressable>
           
         </View>
