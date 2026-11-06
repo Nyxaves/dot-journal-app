@@ -4,6 +4,10 @@ import { listHabits } from '../database/habitRepository';
 import { debugDatabase } from '../database/dailyRepository';
 import { listMicroGoals } from '../database/microGoalRepository';
 import {
+  listEventsByDate,
+  type JournalEvent,
+} from '../database/eventRepository';
+import {
   getDailyData,
   saveDailyCheck,
   saveDailyField,
@@ -112,6 +116,7 @@ function Section({
 
 export default function DailyScreen() {
   const { date } = useLocalSearchParams<{ date?: string }>();
+  const [events, setEvents] = useState<JournalEvent[]>([]);
   const [dateKey, setDateKey] = useState(() => {
     if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
       const [year, month, day] = date.split('-').map(Number);
@@ -168,14 +173,11 @@ export default function DailyScreen() {
 
       async function loadDay() {
         try {
-          // Inicializa o banco e recupera as marcações do dia.
           const data = await getDailyData(dateKey);
-
-          // Consulta os hábitos cadastrados no SQLite.
           const activeHabits = await listHabits();
-
+          const dailyEvents = await listEventsByDate(dateKey);
           if (!active) return;
-
+          setEvents(dailyEvents);
           const dailyMicroGoals = await listMicroGoals(dateKey);
 
             if (!active) return;
@@ -316,6 +318,39 @@ export default function DailyScreen() {
             </Text>
           </Pressable>
           <Pressable
+              onPress={() => router.push('/annual')}
+              style={{
+                backgroundColor: '#f7dde6',
+                padding: 12,
+                borderRadius: 12,
+                marginTop: 10,
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{ color: COLORS.ink, fontWeight: '700' }}>
+                ✿ Meu planejamento anual
+              </Text>
+          </Pressable>
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: '/events',
+                params: { date: dateKey },
+              })
+            }
+            style={{
+              backgroundColor: '#E8EDE4',
+              padding: 12,
+              borderRadius: 12,
+              marginTop: 10,
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ color: COLORS.ink, fontWeight: '700' }}>
+              ✿ Minha agenda de eventos
+            </Text>
+          </Pressable>
+          <Pressable
             onPress={() => router.push('/monthly')}
             style={{
               backgroundColor: '#E7E0F1',
@@ -343,8 +378,9 @@ export default function DailyScreen() {
               ✿ Meu planejamento semanal
             </Text>
           </Pressable>
+          
         </View>
-
+       
         <View style={styles.dateCard}>
           <Text style={styles.dateLabel}>MEU PLANEJAMENTO</Text>
           <Text style={styles.dateText}>{formattedDate}</Text>
@@ -447,6 +483,86 @@ export default function DailyScreen() {
               </View>
 
               <Checklist items={habits} onToggle={toggleHabit} />
+            </Section>
+            
+            <Section title="✿  Compromissos do dia">
+              {events.length === 0 ? (
+                <Text style={styles.helper}>
+                  Nenhum compromisso cadastrado para hoje.
+                </Text>
+              ) : (
+                events.map((event) => (
+                  <View
+                    key={event.id}
+                    style={{
+                      paddingVertical: 12,
+                      borderBottomWidth: 1,
+                      borderBottomColor: '#E7E1D8',
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: COLORS.ink,
+                        fontSize: 14,
+                        fontWeight: '700',
+                      }}
+                    >
+                      {event.title}
+                    </Text>
+
+                    <Text
+                      style={{
+                        color: '#8F8B90',
+                        fontSize: 12,
+                        marginTop: 5,
+                      }}
+                    >
+                      {event.time
+                        ? event.endTime
+                          ? `${event.time} – ${event.endTime}`
+                          : event.time
+                        : 'Dia inteiro'}
+                    </Text>
+
+                    {!!event.description && (
+                      <Text
+                        style={{
+                          color: '#8F8B90',
+                          fontSize: 12,
+                          marginTop: 6,
+                        }}
+                      >
+                        {event.description}
+                      </Text>
+                    )}
+                  </View>
+                ))
+              )}
+
+              <Pressable
+                onPress={() =>
+                  router.push({
+                    pathname: '/events',
+                    params: { date: dateKey },
+                  })
+                }
+                style={{
+                  backgroundColor: '#F7DDE6',
+                  padding: 12,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  marginTop: 12,
+                }}
+              >
+                <Text
+                  style={{
+                    color: COLORS.ink,
+                    fontWeight: '700',
+                  }}
+                >
+                  + Gerenciar compromissos
+                </Text>
+              </Pressable>
             </Section>
 
             <Section title="☼  Anotações do dia">

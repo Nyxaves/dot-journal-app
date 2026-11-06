@@ -20,6 +20,8 @@ export default function RootLayout() {
         <Stack.Screen name="monthly" />
         <Stack.Screen name="weekly" />
         <Stack.Screen name="micro-goals" />
+        <Stack.Screen name="annual" />
+        <Stack.Screen name="events" />
       </Stack>
     </>
   );

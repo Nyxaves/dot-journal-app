@@ -1,5 +1,12 @@
-
-import React, { useCallback, useState } from 'react';
+import {
+  listEventsByMonth,
+  type JournalEvent,
+} from '../database/eventRepository';
+import React, {
+  useCallback,
+  useEffect,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -8,7 +15,11 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import {
+  useFocusEffect,
+  useLocalSearchParams,
+  useRouter,
+} from 'expo-router';
 
 import {
   getMonthlyTracker,
@@ -34,6 +45,23 @@ function dateKey(year: number, month: number, day: number) {
 
 export default function MonthlyScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{
+    year?: string;
+    month?: string;
+  }>();
+  const [events, setEvents] = useState<JournalEvent[]>([]);
+  const requestedYear = Number(params.year);
+  const requestedMonth = Number(params.month);
+
+  const hasValidPeriod =
+    typeof params.year === 'string' &&
+    typeof params.month === 'string' &&
+    Number.isInteger(requestedYear) &&
+    requestedYear >= 1 &&
+    requestedYear <= 9999 &&
+    Number.isInteger(requestedMonth) &&
+    requestedMonth >= 1 &&
+    requestedMonth <= 12;
   const [period, setPeriod] = useState(() => {
     const today = new Date();
     return {
@@ -41,11 +69,20 @@ export default function MonthlyScreen() {
       month: today.getMonth() + 1,
     };
   });
+  useEffect(() => {
+    if (!hasValidPeriod) return;
+
+    setPeriod({
+      year: requestedYear,
+      month: requestedMonth,
+    });
+  }, [hasValidPeriod, requestedYear, requestedMonth]);
 
   const [tracker, setTracker] = useState<MonthlyTracker | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  
   useFocusEffect(
     useCallback(() => {
       let active = true;
@@ -53,23 +90,35 @@ export default function MonthlyScreen() {
       setLoading(true);
       setError(null);
 
-      getMonthlyTracker(period.year, period.month)
-        .then((result) => {
-          if (active) setTracker(result);
-        })
-        .catch((err) => {
-          console.error('Erro no calendário:', err);
-          if (active) setError('Não foi possível carregar o mês.');
-        })
-        .finally(() => {
+      async function loadMonth() {
+        try {
+          const [monthlyData, monthlyEvents] = await Promise.all([
+            getMonthlyTracker(period.year, period.month),
+            listEventsByMonth(period.year, period.month),
+          ]);
+
+          if (!active) return;
+
+          setTracker(monthlyData);
+          setEvents(monthlyEvents);
+        } catch (err) {
+          if (!active) return;
+
+          console.error('Erro ao carregar mês:', err);
+          setError('Não foi possível carregar o calendário.');
+        } finally {
           if (active) setLoading(false);
-        });
+        }
+      }
+
+      void loadMonth();
 
       return () => {
         active = false;
       };
     }, [period.year, period.month])
   );
+
 
   function changeMonth(amount: number) {
     setPeriod((current) => {
@@ -118,6 +167,16 @@ export default function MonthlyScreen() {
     ...Array.from({ length: firstWeekday }, () => null),
     ...Array.from({ length: totalDays }, (_, i) => i + 1),
   ];
+  const eventCountByDay = new Map<number, number>();
+
+  for (const event of events) {
+    const day = Number(event.date.slice(8, 10));
+
+    eventCountByDay.set(
+      day,
+      (eventCountByDay.get(day) ?? 0) + 1
+    );
+  }
 
   const completedByDay = new Map<number, number>();
 
@@ -195,9 +254,34 @@ export default function MonthlyScreen() {
                         <Text style={styles.dayText}>{day}</Text>
                       </View>
 
-                      {(completedByDay.get(day) ?? 0) > 0 && (
-                        <View style={styles.dot} />
-                      )}
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          gap: 4,
+                          height: 6,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        {(eventCountByDay.get(day) ?? 0) > 0 && (
+                          <View
+                            style={[
+                              styles.dot,
+                              { backgroundColor: '#D69AAF', marginTop: 0 },
+                            ]}
+                          />
+                        )}
+
+                        {(completedByDay.get(day) ?? 0) > 0 && (
+                          <View
+                            style={[
+                              styles.dot,
+                              { backgroundColor: '#90AE98', marginTop: 0 },
+                            ]}
+                          />
+                        )}
+                      </View>
+
                     </>
                   )}
                 </Pressable>
@@ -209,6 +293,65 @@ export default function MonthlyScreen() {
             Toque em um dia para abrir seu diário. O ponto verde
             indica hábitos concluídos.
           </Text>
+        </View>
+
+        <Text style={styles.sectionTitle}>
+          ✿ Eventos do mês
+        </Text>
+
+        <View style={styles.card}>
+          {loading ? (
+            <ActivityIndicator color={C.sage} />
+          ) : error ? (
+            <Text style={styles.subtitle}>{error}</Text>
+          ) : events.length === 0 ? (
+            <Text style={styles.hint}>
+              Nenhum evento cadastrado neste mês.
+            </Text>
+          ) : (
+            events.map((event) => (
+              <Pressable
+                key={event.id}
+                onPress={() =>
+                  router.push({
+                    pathname: '/events',
+                    params: { date: event.date },
+                  })
+                }
+                style={{
+                  paddingVertical: 12,
+                  borderBottomWidth: 1,
+                  borderBottomColor: '#E7E1D8',
+                }}
+              >
+                <Text
+                  style={{
+                    fontWeight: '700',
+                    color: C.ink,
+                    fontSize: 14,
+                  }}
+                >
+                  {event.title}
+                </Text>
+
+                <Text
+                  style={{
+                    color: '#8F8B90',
+                    marginTop: 5,
+                    fontSize: 12,
+                  }}
+                >
+                  {event.date.split('-').reverse().join('/')}
+                  {' · '}
+                  {event.time
+                    ? event.endTime
+                      ? `${event.time} – ${event.endTime}`
+                      : event.time
+                    : 'Dia inteiro'}
+                </Text>
+              </Pressable>
+            ))
+          )}
         </View>
 
         <Text style={styles.sectionTitle}>
