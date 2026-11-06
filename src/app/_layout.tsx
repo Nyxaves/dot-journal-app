@@ -24,6 +24,7 @@ export default function RootLayout() {
         <Stack.Screen name="events" />
         <Stack.Screen name="wellness" />
         <Stack.Screen name="routine" />
+        <Stack.Screen name="backup" />
       </Stack>
     </>
   );
