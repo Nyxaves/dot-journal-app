@@ -1,7 +1,8 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useFocusEffect, useRouter, useLocalSearchParams, } from 'expo-router';
 import { listHabits } from '../database/habitRepository';
 import { debugDatabase } from '../database/dailyRepository';
+import { listMicroGoals } from '../database/microGoalRepository';
 import {
   getDailyData,
   saveDailyCheck,
@@ -28,12 +29,11 @@ const COLORS = {
   line: '#E7E1D8',
 };
 
-const initialGoals = [
-  { id: '1', title: 'Beber um copo de água', done: false },
-  { id: '2', title: 'Escrever uma frase', done: false },
-  { id: '3', title: 'Organizar meu espaço', done: false },
-];
-
+// const initialGoals = [
+//   { id: '1', title: 'Beber um copo de água', done: false },
+//   { id: '2', title: 'Escrever uma frase', done: false },
+//   { id: '3', title: 'Organizar meu espaço', done: false },
+// ];
 
 function toDateKey(date: Date) {
   const year = date.getFullYear();
@@ -128,7 +128,23 @@ export default function DailyScreen() {
 
     return toDateKey(new Date());
   });
-  const [goals, setGoals] = useState(initialGoals);
+  useEffect(() => {
+    if (typeof date !== 'string') return;
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+
+    const [year, month, day] = date.split('-').map(Number);
+    const parsed = new Date(year, month - 1, day);
+
+    if (
+      parsed.getFullYear() === year &&
+      parsed.getMonth() + 1 === month &&
+      parsed.getDate() === day
+    ) {
+      setDateKey(date);
+    }
+  }, [date]);
+  const [goals, setGoals] = useState<Task[]>([]);
   const [habits, setHabits] = useState<Task[]>([]);
   const router = useRouter();
   const [notes, setNotes] = useState('');
@@ -160,12 +176,17 @@ export default function DailyScreen() {
 
           if (!active) return;
 
-          setGoals(
-            initialGoals.map((item) => ({
-              ...item,
-              done: data.goals[item.id] ?? false,
-            }))
-          );
+          const dailyMicroGoals = await listMicroGoals(dateKey);
+
+            if (!active) return;
+
+            setGoals(
+              dailyMicroGoals.map((item) => ({
+                id: item.id,
+                title: item.title,
+                done: data.goals[item.id] ?? false,
+              }))
+            );
 
           setHabits(
             activeHabits.map((habit) => ({
@@ -308,6 +329,20 @@ export default function DailyScreen() {
               ✿ Meu calendário mensal
             </Text>
           </Pressable>
+          <Pressable
+            onPress={() => router.push('/weekly')}
+            style={{
+              backgroundColor: '#F1E7D8',
+              padding: 12,
+              borderRadius: 12,
+              marginTop: 10,
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ color: COLORS.ink, fontWeight: '700' }}>
+              ✿ Meu planejamento semanal
+            </Text>
+          </Pressable>
         </View>
 
         <View style={styles.dateCard}>
@@ -365,6 +400,25 @@ export default function DailyScreen() {
               </Text>
 
               <Checklist items={goals} onToggle={toggleGoal} />
+              <Pressable
+                onPress={() =>
+                  router.push({
+                    pathname: '/micro-goals',
+                    params: { date: dateKey },
+                  })
+                }
+                style={{
+                  backgroundColor: '#E8EDE4',
+                  padding: 12,
+                  borderRadius: 12,
+                  marginTop: 12,
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ color: COLORS.ink, fontWeight: '700' }}>
+                  ✨ Personalizar micro-metas
+                </Text>
+              </Pressable>
             </Section>
 
             <Section title="♡  Hábitos de hoje">
