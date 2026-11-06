@@ -1,3 +1,4 @@
+import PersonalDayTracker from '../components/PersonalDayTracker';
 import KeyboardAwareJournalScrollView from '../components/KeyboardAwareJournalScrollView';
 import JournalQuickNav from '../components/JournalQuickNav';
 import DotGridBackground from '../components/DotGridBackground';
@@ -477,6 +478,10 @@ export default function DailyScreen() {
                   + Gerenciar compromissos
                 </Text>
               </Pressable>
+            </Section>
+
+            <Section title="♡  Como foi meu dia">
+              <PersonalDayTracker key={dateKey} date={dateKey} />
             </Section>
 
             <Section title="☼  Anotações do dia">
