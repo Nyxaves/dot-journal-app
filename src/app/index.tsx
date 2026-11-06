@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter, useLocalSearchParams, } from 'expo-router';
 import { listHabits } from '../database/habitRepository';
 import { debugDatabase } from '../database/dailyRepository';
 import {
@@ -111,7 +111,23 @@ function Section({
 
 
 export default function DailyScreen() {
-  const [dateKey, setDateKey] = useState(() => toDateKey(new Date()));
+  const { date } = useLocalSearchParams<{ date?: string }>();
+  const [dateKey, setDateKey] = useState(() => {
+    if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      const [year, month, day] = date.split('-').map(Number);
+      const parsed = new Date(year, month - 1, day);
+
+      if (
+        parsed.getFullYear() === year &&
+        parsed.getMonth() + 1 === month &&
+        parsed.getDate() === day
+      ) {
+        return date;
+      }
+    }
+
+    return toDateKey(new Date());
+  });
   const [goals, setGoals] = useState(initialGoals);
   const [habits, setHabits] = useState<Task[]>([]);
   const router = useRouter();
@@ -276,6 +292,20 @@ export default function DailyScreen() {
           >
             <Text style={{ color: COLORS.ink, fontWeight: '700' }}>
               ✿ Gerenciar meus hábitos
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => router.push('/monthly')}
+            style={{
+              backgroundColor: '#E7E0F1',
+              padding: 12,
+              borderRadius: 12,
+              marginTop: 10,
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ color: COLORS.ink, fontWeight: '700' }}>
+              ✿ Meu calendário mensal
             </Text>
           </Pressable>
         </View>
