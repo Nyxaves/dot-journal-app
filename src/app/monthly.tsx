@@ -1,3 +1,5 @@
+import { listPersonalDaysByMonth, type PersonalDay } from '../database/personalTrackingRepository';
+import { MOOD_OPTIONS } from '../components/PersonalDayTracker';
 import KeyboardAwareJournalScrollView from '../components/KeyboardAwareJournalScrollView';
 import DotGridBackground from '../components/DotGridBackground';
 import {
@@ -54,6 +56,7 @@ export default function MonthlyScreen() {
     month?: string;
   }>();
   const [events, setEvents] = useState<JournalEvent[]>([]);
+  const [personalDays, setPersonalDays] = useState<PersonalDay[]>([]);
   const requestedYear = Number(params.year);
   const requestedMonth = Number(params.month);
 
@@ -96,15 +99,17 @@ export default function MonthlyScreen() {
 
       async function loadMonth() {
         try {
-          const [monthlyData, monthlyEvents] = await Promise.all([
+          const [monthlyData, monthlyEvents, monthlyPersonalDays] = await Promise.all([
             getMonthlyTracker(period.year, period.month),
             listEventsByMonth(period.year, period.month),
+            listPersonalDaysByMonth(period.year, period.month),
           ]);
 
           if (!active) return;
 
           setTracker(monthlyData);
           setEvents(monthlyEvents);
+          setPersonalDays(monthlyPersonalDays);
         } catch (err) {
           if (!active) return;
 
@@ -193,6 +198,9 @@ export default function MonthlyScreen() {
     }
   }
 
+  const personalByDay = new Map<number, PersonalDay>();
+  for (const value of personalDays) personalByDay.set(Number(value.date.slice(8, 10)), value);
+
   const today = new Date();
 
   return (
@@ -277,6 +285,12 @@ export default function MonthlyScreen() {
                           />
                         )}
 
+                        {personalByDay.get(day)?.mood && (
+                          <View style={[styles.dot, {
+                            backgroundColor: MOOD_OPTIONS.find(o => o.value === personalByDay.get(day)?.mood)?.color ?? '#C9C5E8',
+                          }]} />
+                        )}
+                        {personalByDay.get(day)?.menstruating && <Text style={{ fontSize: 10, color: '#BF537B', marginTop: -4 }}>♥</Text>}
                         {(completedByDay.get(day) ?? 0) > 0 && (
                           <View
                             style={[
@@ -296,7 +310,7 @@ export default function MonthlyScreen() {
 
           <Text style={styles.hint}>
             Toque em um dia para abrir seu diário. O ponto verde
-            indica hábitos concluídos.
+            indica hábitos concluídos. As cores representam o humor e o coração marca menstruação.
           </Text>
         </View>
 
@@ -357,6 +371,55 @@ export default function MonthlyScreen() {
               </Pressable>
             ))
           )}
+        </View>
+
+        <Text style={styles.sectionTitle}>Humor e ciclo do mês</Text>
+        <View style={styles.card}>
+          <Text style={styles.hint}>Deslize para conferir todos os dias. Toque em uma data para editar no diário.</Text>
+          <View style={styles.legend}>
+            {MOOD_OPTIONS.map(option => (
+              <View key={option.value} style={styles.legendItem}>
+                <View style={[styles.moodDot, { backgroundColor: option.color }]} />
+                <Text style={styles.legendText}>{option.label}</Text>
+              </View>
+            ))}
+            <Text style={styles.legendText}>♥ Menstruação</Text>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator>
+            <View>
+              <View style={styles.trackerRow}>
+                <View style={styles.nameCell}><Text style={styles.tableText}>Dia</Text></View>
+                {Array.from({ length: totalDays }, (_, i) => (
+                  <View key={i} style={styles.gridCell}><Text style={styles.tableText}>{i + 1}</Text></View>
+                ))}
+              </View>
+              {(['mood', 'period'] as const).map(kind => (
+                <View key={kind} style={styles.trackerRow}>
+                  <View style={styles.nameCell}>
+                    <Text style={styles.habitName}>{kind === 'mood' ? 'Humor' : 'Ciclo ♡'}</Text>
+                  </View>
+                  {Array.from({ length: totalDays }, (_, i) => {
+                    const value = personalByDay.get(i + 1);
+                    const mood = MOOD_OPTIONS.find(o => o.value === value?.mood);
+                    return (
+                      <Pressable key={i} style={styles.gridCell} onPress={() => openDay(i + 1)}
+                        accessibilityLabel={`Abrir dia ${i + 1} para registrar ${kind === 'mood' ? 'humor' : 'menstruação'}`}>
+                        {kind === 'mood' ? (
+                          mood ? <View style={[styles.moodDot, { backgroundColor: mood.color }]} />
+                               : <Text style={styles.emptyMark}>·</Text>
+                        ) : (
+                          <Text style={[styles.heartMark, !value?.menstruating && styles.emptyMark]}>
+                            {value?.menstruating ? '♥' : '·'}
+                          </Text>
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+          <Text style={styles.hint}>Registros opcionais; nenhuma previsão automática do ciclo.</Text>
         </View>
 
         <Text style={styles.sectionTitle}>
@@ -451,6 +514,12 @@ export default function MonthlyScreen() {
 }
 
 const styles = StyleSheet.create({
+  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginVertical: 12 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  legendText: { fontSize: 10, color: '#77717B' },
+  moodDot: { width: 15, height: 15, borderRadius: 8 },
+  heartMark: { color: '#BF537B', fontSize: 16 },
+  emptyMark: { color: '#B9B7AE', fontSize: 15 },
   container: { flex: 1, backgroundColor: C.paper },
   content: {
     padding: 20,
