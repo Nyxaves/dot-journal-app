@@ -23,6 +23,7 @@ export default function JournalQuickNav({ date }: { date: string }) {
     { label: 'Bem-estar', detail: 'Sono e tela', icon: '☾', color: theme.colors.lavender, href: '/wellness' },
     { label: 'Rotina 24h', detail: 'Seu relógio', icon: '◉', color: theme.colors.apricot, href: '/routine' },
     { label: 'Estatísticas', detail: 'Meu progresso', icon: '◴', color: theme.colors.lavender, href: '/insights' },
+    { label: 'Lembretes', detail: 'Aviso diário', icon: '♧', color: theme.colors.pink, href: '/reminders' },
     { label: 'Privacidade', detail: 'Meus dados', icon: '♡', color: theme.colors.peach, href: '/privacy' },
     { label: 'Backup', detail: 'Guardar meus dados', icon: '▣', color: theme.colors.sageLight, href: '/backup' },
   ];

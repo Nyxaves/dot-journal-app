@@ -28,6 +28,7 @@ export default function RootLayout() {
         <Stack.Screen name="insights" />
         <Stack.Screen name="restore" />
         <Stack.Screen name="privacy" />
+        <Stack.Screen name="reminders" />
       </Stack>
     </>
   );
