@@ -1,7 +1,10 @@
+import PersonalDayTracker from '../components/PersonalDayTracker';
+import KeyboardAwareJournalScrollView from '../components/KeyboardAwareJournalScrollView';
+import JournalQuickNav from '../components/JournalQuickNav';
+import DotGridBackground from '../components/DotGridBackground';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useFocusEffect, useRouter, useLocalSearchParams, } from 'expo-router';
 import { listHabits } from '../database/habitRepository';
-import { debugDatabase } from '../database/dailyRepository';
 import { listMicroGoals } from '../database/microGoalRepository';
 import {
   listEventsByDate,
@@ -15,7 +18,8 @@ import {
 import {
   View,
   Text,
-  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   TextInput,
   StyleSheet,
@@ -156,14 +160,6 @@ export default function DailyScreen() {
   const [gratitude, setGratitude] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const handleDebug = async () => {
-    try {
-      await debugDatabase();
-    } catch (error) {
-      console.error('ERRO SQLITE DEBUG:', error);
-    }
-  };
-  
   useFocusEffect(
     useCallback(() => {
       let active = true;
@@ -284,115 +280,18 @@ export default function DailyScreen() {
   ).length;
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <DotGridBackground />
       <StatusBar barStyle="dark-content" />
-      <Pressable
-        onPress={handleDebug}
-        style={{
-          backgroundColor: '#C5D6C4',
-          padding: 12,
-          alignItems: 'center',
-        }}
-      >
-        <Text>TESTAR BANCO SQLITE</Text>
-      </Pressable>
-      <ScrollView
+      <KeyboardAwareJournalScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
       >
         <View style={styles.header}>
           <Text style={styles.brand}>dot journal.</Text>
           <Text style={styles.subtitle}>um dia de cada vez ✿</Text>
-          <Pressable
-            onPress={() => router.push('/habits')}
-            style={{
-              backgroundColor: '#E8EDE4',
-              padding: 12,
-              borderRadius: 12,
-              marginTop: 16,
-              alignItems: 'center',
-            }}
-          >
-            <Text style={{ color: COLORS.ink, fontWeight: '700' }}>
-              ✿ Gerenciar meus hábitos
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => router.push('/wellness')}
-            style={{ 
-              backgroundColor: '#E8E4F2', 
-              padding: 12, 
-              borderRadius: 12, 
-              marginTop: 10, 
-              alignItems: 'center' }}
-          >
-            <Text style={{ color: COLORS.ink, fontWeight: '700' }}>
-              ✿ Meu bem-estar
-            </Text>
-          </Pressable>
-          
-          <Pressable
-            onPress={() =>
-              router.push({
-                pathname: '/events',
-                params: { date: dateKey },
-              })
-            }
-            style={{
-              backgroundColor: '#E8EDE4',
-              padding: 12,
-              borderRadius: 12,
-              marginTop: 10,
-              alignItems: 'center',
-            }}
-          >
-            <Text style={{ color: COLORS.ink, fontWeight: '700' }}>
-              ✿ Minha agenda de eventos
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => router.push('/monthly')}
-            style={{
-              backgroundColor: '#E7E0F1',
-              padding: 12,
-              borderRadius: 12,
-              marginTop: 10,
-              alignItems: 'center',
-            }}
-          >
-            <Text style={{ color: COLORS.ink, fontWeight: '700' }}>
-              ✿ Meu calendário mensal
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => router.push('/weekly')}
-            style={{
-              backgroundColor: '#F1E7D8',
-              padding: 12,
-              borderRadius: 12,
-              marginTop: 10,
-              alignItems: 'center',
-            }}
-          >
-            <Text style={{ color: COLORS.ink, fontWeight: '700' }}>
-              ✿ Meu planejamento semanal
-            </Text>
-          </Pressable>
-          <Pressable
-              onPress={() => router.push('/annual')}
-              style={{
-                backgroundColor: '#f7dde6',
-                padding: 12,
-                borderRadius: 12,
-                marginTop: 10,
-                alignItems: 'center',
-              }}
-            >
-              <Text style={{ color: COLORS.ink, fontWeight: '700' }}>
-                ✿ Meu planejamento anual
-              </Text>
-          </Pressable>
-          
         </View>
        
         <View style={styles.dateCard}>
@@ -429,6 +328,8 @@ export default function DailyScreen() {
             </Pressable>
           </View>
         </View>
+
+        <JournalQuickNav date={dateKey} />
 
         {loading ? (
           <ActivityIndicator
@@ -579,6 +480,10 @@ export default function DailyScreen() {
               </Pressable>
             </Section>
 
+            <Section title="♡  Como foi meu dia">
+              <PersonalDayTracker key={dateKey} date={dateKey} />
+            </Section>
+
             <Section title="☼  Anotações do dia">
               <TextInput
                 style={styles.textArea}
@@ -614,8 +519,8 @@ export default function DailyScreen() {
             feito de pequenos momentos ♡
           </Text>
         </View>
-      </ScrollView>
-    </View>
+      </KeyboardAwareJournalScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -634,7 +539,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   brand: {
-    fontSize: 30,
+    fontSize: 32,
     fontWeight: '800',
     color: COLORS.ink,
     letterSpacing: -1,

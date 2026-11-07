@@ -1,11 +1,23 @@
 
 import * as SQLite from 'expo-sqlite';
 
+export const ANNUAL_GROUPS = {
+  Profissional: ['Material', 'Contribuição', 'Propósito'],
+  Social: ['Amizades', 'Relacionamento', 'Família'],
+  Pessoal: ['Saúde', 'Mental', 'Espiritual'],
+} as const;
+export type AnnualGroup = keyof typeof ANNUAL_GROUPS;
+export type AnnualSubgroup = (typeof ANNUAL_GROUPS)[AnnualGroup][number];
+export function validAnnualClassification(group: string, subgroup: string): boolean {
+  return Object.entries(ANNUAL_GROUPS).some(([g, subs]) => g === group && (subs as readonly string[]).includes(subgroup));
+}
 export type AnnualGoal = {
   id: string;
   year: number;
   title: string;
   description: string;
+  group: AnnualGroup;
+  subgroup: AnnualSubgroup;
   completed: boolean;
 };
 
@@ -14,6 +26,8 @@ type AnnualGoalRow = {
   year: number;
   title: string;
   description: string;
+  group_name: AnnualGroup;
+  subgroup_name: AnnualSubgroup;
   completed: number;
 };
 
@@ -38,6 +52,14 @@ function getDatabase() {
           ON annual_goals(year);
         `);
 
+        // Migração aditiva: metas existentes permanecem intactas.
+        const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(annual_goals)');
+        if (!columns.some((col) => col.name === 'group_name')) {
+          await db.execAsync("ALTER TABLE annual_goals ADD COLUMN group_name TEXT NOT NULL DEFAULT 'Pessoal'");
+        }
+        if (!columns.some((col) => col.name === 'subgroup_name')) {
+          await db.execAsync("ALTER TABLE annual_goals ADD COLUMN subgroup_name TEXT NOT NULL DEFAULT 'Mental'");
+        }
         return db;
       })
       .catch((error) => {
@@ -55,6 +77,8 @@ function mapGoal(row: AnnualGoalRow): AnnualGoal {
     year: row.year,
     title: row.title,
     description: row.description,
+    group: row.group_name,
+    subgroup: row.subgroup_name,
     completed: row.completed === 1,
   };
 }
@@ -65,7 +89,7 @@ export async function listAnnualGoals(
   const db = await getDatabase();
 
   const rows = await db.getAllAsync<AnnualGoalRow>(
-    `SELECT id, year, title, description, completed
+    `SELECT id, year, title, description, completed, group_name, subgroup_name
      FROM annual_goals
      WHERE year = ?
      ORDER BY created_at ASC, id ASC`,
@@ -78,7 +102,9 @@ export async function listAnnualGoals(
 export async function createAnnualGoal(
   year: number,
   title: string,
-  description = ''
+  description = '',
+  group: AnnualGroup = 'Pessoal',
+  subgroup: AnnualSubgroup = 'Mental'
 ): Promise<AnnualGoal> {
   const name = title.trim();
 
@@ -90,6 +116,8 @@ export async function createAnnualGoal(
     throw new Error('Ano inválido.');
   }
 
+  if (!validAnnualClassification(group, subgroup)) throw new Error('Classificação inválida.');
+
   const db = await getDatabase();
 
   const id = `${Date.now()}-${Math.random()
@@ -98,12 +126,14 @@ export async function createAnnualGoal(
 
   await db.runAsync(
     `INSERT INTO annual_goals
-       (id, year, title, description)
-     VALUES (?, ?, ?, ?)`,
+       (id, year, title, description, group_name, subgroup_name)
+     VALUES (?, ?, ?, ?, ?, ?)`,
     id,
     year,
     name,
-    description.trim()
+    description.trim(),
+    group,
+    subgroup
   );
 
   return {
@@ -111,6 +141,8 @@ export async function createAnnualGoal(
     year,
     title: name,
     description: description.trim(),
+    group,
+    subgroup,
     completed: false,
   };
 }
@@ -118,7 +150,9 @@ export async function createAnnualGoal(
 export async function updateAnnualGoal(
   id: string,
   title: string,
-  description: string
+  description: string,
+  group: AnnualGroup = 'Pessoal',
+  subgroup: AnnualSubgroup = 'Mental'
 ): Promise<void> {
   const name = title.trim();
 
@@ -126,14 +160,16 @@ export async function updateAnnualGoal(
     throw new Error('O título da meta é obrigatório.');
   }
 
+  if (!validAnnualClassification(group, subgroup)) throw new Error('Classificação inválida.');
   const db = await getDatabase();
 
   const result = await db.runAsync(
     `UPDATE annual_goals
-     SET title = ?, description = ?
+     SET title = ?, description = ?, group_name = ?, subgroup_name = ?
      WHERE id = ?`,
     name,
     description.trim(),
+    group, subgroup,
     id
   );
 

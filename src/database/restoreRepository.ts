@@ -1,0 +1,97 @@
+import * as SQLite from 'expo-sqlite';
+import { File, FileMode, Paths } from 'expo-file-system';
+
+const DB_NAME = 'dot-journal.db';
+const HEADER = [83, 81, 76, 105, 116, 101, 32, 102, 111, 114, 109, 97, 116, 32, 51, 0];
+const REQUIRED = ['daily_entries', 'daily_checks', 'habits'];
+export type RestorePreview = { fileName: string; bytes: number; tables: string[]; totalRows: number; integrity: string };
+export type PreparedRestore = { preview: RestorePreview; bytes: Uint8Array };
+
+async function readSqliteBytes(file: File): Promise<Uint8Array> {
+  if (!file.exists || !file.size || file.size < 100 || file.size > 25 * 1024 * 1024) {
+    throw new Error('Selecione um SQLite entre 100 bytes e 25 MB.');
+  }
+  const handle = file.open(FileMode.ReadOnly);
+  try {
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    while (size < file.size) {
+      const chunk = await handle.readBytes(Math.min(1024 * 1024, file.size - size));
+      if (chunk.length === 0) throw new Error('Leitura incompleta do arquivo.');
+      chunks.push(chunk);
+      size += chunk.length;
+    }
+    const result = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.length; }
+    return result;
+  } finally { handle.close(); }
+}
+
+async function inspect(bytes: Uint8Array): Promise<Omit<RestorePreview, 'fileName' | 'bytes'>> {
+  if (bytes.length < 100 || HEADER.some((b, i) => bytes[i] !== b)) throw new Error('Arquivo não é um banco SQLite válido.');
+  const restored = await SQLite.deserializeDatabaseAsync(bytes);
+  try {
+    const result = await restored.getFirstAsync<{ integrity_check: string }>('PRAGMA integrity_check');
+    if (result?.integrity_check !== 'ok') throw new Error('O banco selecionado falhou no teste de integridade.');
+    const rows = await restored.getAllAsync<{ name: string }>(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+    );
+    const tables = rows.map(x => x.name);
+    if (!REQUIRED.every(x => tables.includes(x))) throw new Error('Backup incompatível: faltam tabelas essenciais do Dot Journal.');
+    let totalRows = 0;
+    for (const table of tables) {
+      if (!/^[A-Za-z_][A-Za-z_0-9]*$/.test(table)) throw new Error('Nome de tabela inesperado.');
+      const n = await restored.getFirstAsync<{ value: number }>(`SELECT COUNT(*) AS value FROM "${table}"`);
+      totalRows += n?.value ?? 0;
+    }
+    return { tables, totalRows, integrity: 'ok' };
+  } finally { await restored.closeAsync(); }
+}
+
+/** Seleciona e INSPECIONA um backup sem tocar no banco real. */
+export async function prepareRestore(): Promise<PreparedRestore | null> {
+  const picked = await File.pickFileAsync();
+  const file = Array.isArray(picked) ? picked[0] : picked;
+  if (!file) return null;
+  const bytes = await readSqliteBytes(file);
+  const details = await inspect(bytes);
+  return { bytes, preview: { fileName: file.name, bytes: bytes.length, ...details } };
+}
+
+/**
+ * Restauração experimental e protegida: mantém um arquivo de recuperação ANTES
+ * de modificar o banco real e tenta rollback via SQLite online backup.
+ * Executar apenas com as outras telas fechadas e reiniciar o app em seguida.
+ */
+export async function applyRestore(prepared: PreparedRestore): Promise<string> {
+  await inspect(prepared.bytes); // repete a validação no momento da escrita
+  const live = await SQLite.openDatabaseAsync(DB_NAME);
+  const state = await live.getFirstAsync<{ integrity_check: string }>('PRAGMA integrity_check');
+  if (state?.integrity_check !== 'ok') throw new Error('Banco atual com integridade inválida. Restauração bloqueada.');
+  const safety = await live.serializeAsync();
+  const recoveryName = `dot-journal-recovery-${new Date().toISOString().replace(/[:.]/g, '-')}.sqlite`;
+  const recoveryFile = new File(Paths.document, recoveryName);
+  await recoveryFile.write(safety);
+  if (!recoveryFile.exists || recoveryFile.size !== safety.length) throw new Error('Não foi possível salvar a cópia de segurança. Nada foi alterado.');
+  const source = await SQLite.deserializeDatabaseAsync(prepared.bytes);
+  let touched = false;
+  try {
+    touched = true;
+    await SQLite.backupDatabaseAsync({ sourceDatabase: source, destDatabase: live, sourceDatabaseName: 'main', destDatabaseName: 'main' });
+    const after = await live.getFirstAsync<{ integrity_check: string }>('PRAGMA integrity_check');
+    if (after?.integrity_check !== 'ok') throw new Error('Falha na integridade após restaurar.');
+    return recoveryName;
+  } catch (error) {
+    if (touched) {
+      try {
+        const rescue = await SQLite.deserializeDatabaseAsync(safety);
+        try { await SQLite.backupDatabaseAsync({ sourceDatabase: rescue, destDatabase: live, sourceDatabaseName: 'main', destDatabaseName: 'main' }); }
+        finally { await rescue.closeAsync(); }
+      } catch (rollbackError) {
+        throw new Error('Falha crítica ao recuperar o banco atual. Preserve o arquivo de recuperação e não faça novas alterações. ' + String(rollbackError));
+      }
+    }
+    throw error;
+  } finally { await source.closeAsync(); }
+}

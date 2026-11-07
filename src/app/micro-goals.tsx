@@ -1,10 +1,13 @@
+import KeyboardAwareJournalScrollView from '../components/KeyboardAwareJournalScrollView';
+import DotGridBackground from '../components/DotGridBackground';
 
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Pressable,
-  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -137,10 +140,13 @@ export default function MicroGoalsScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <ScrollView
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <DotGridBackground />
+      <KeyboardAwareJournalScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
       >
         <Pressable onPress={() => router.back()}>
           <Text style={styles.back}>← Voltar</Text>
@@ -199,8 +205,8 @@ export default function MicroGoalsScreen() {
         <Text style={styles.footer}>
           Cada dia possui suas próprias três micro-metas.
         </Text>
-      </ScrollView>
-    </View>
+      </KeyboardAwareJournalScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

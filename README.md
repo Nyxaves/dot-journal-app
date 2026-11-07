@@ -75,3 +75,11 @@ O usuário pode:
 - Personalizar as metas de diferentes dias.
 
 Exemplos de sugestões
+## Estatísticas, restauração e privacidade
+
+- **Estatísticas:** painel mensal local de anotações, hábitos, micro-metas, eventos, médias de sono/tela e humores.
+- **Restauração de backup:** inspeção isolada, validação de integridade, confirmação explícita, cópia de segurança local e tentativa de rollback. **Recurso experimental:** valide primeiro em uma instalação de testes; restauração substitui o banco completo, sem mesclar registros.
+- **Privacidade:** documentos SQLite exportados contêm informações pessoais, inclusive humor e menstruação; não são criptografados pelo aplicativo.
+- **Qualidade:** o GitHub Actions executa TypeScript e testes estruturais em Pull Requests.
+
+Consulte `docs/ENTREGA-UNIFICADA.md` para instruções e limitações. Supabase, notificações e publicação em loja ainda não foram integrados.
