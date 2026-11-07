@@ -61,7 +61,7 @@ export default function InsightsScreen() {
                 <Text style={s.num}>{n}</Text>
               </View>;
             })}
-            <Text style={s.hint}>♡ {data.periodDays} dia(s) marcados como menstruação</Text>
+            <Text style={s.hint}>♡ {data.periodDays} dia(s) no período</Text>
           </View>
           <Text style={s.hint}>As médias consideram somente os dias com registro. Sem registro não significa zero.</Text>
         </>}

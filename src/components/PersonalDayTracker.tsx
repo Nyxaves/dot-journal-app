@@ -76,10 +76,10 @@ export default function PersonalDayTracker({ date }: { date: string }) {
         <Text style={[styles.heart, day.menstruating && styles.heartSelected]}>
           {day.menstruating ? '♥' : '♡'}
         </Text>
-        <View style={{ flex: 1 }}>
+        {/* <View style={{ flex: 1 }}>
           <Text style={styles.periodTitle}>Menstruação</Text>
           <Text style={styles.helper}>{day.menstruating ? 'Marcado neste dia' : 'Toque para marcar este dia'}</Text>
-        </View>
+        </View> */}
       </Pressable>
       <Text style={styles.privacy}>Registro opcional. Estes dados ficam no aparelho e também são incluídos em backups SQLite exportados.</Text>
     </View>
@@ -94,8 +94,8 @@ const styles = StyleSheet.create({
   selected: { borderWidth: 3, borderColor: '#454654' },
   check: { color: '#FFFFFF', fontSize: 19, fontWeight: '800' },
   label: { color: '#454654', fontSize: 11 },
-  period: { flexDirection: 'row', gap: 12, alignItems: 'center', padding: 13, borderRadius: 14, backgroundColor: '#FFF7F9', borderWidth: 1, borderColor: '#F3DEE5' },
-  periodSelected: { backgroundColor: '#F7DDE6', borderColor: '#D69AAF' },
+  period: { alignItems: 'center', padding: 13, borderRadius: 14, backgroundColor: '#FFF7F9', borderWidth: 1, borderColor: '#F3DEE5' },
+  periodSelected: { backgroundColor: '#F7DDE6', borderColor: '#D69AAF', alignItems: 'center', justifyContent: 'center' },
   heart: { color: '#C48693', fontSize: 28 },
   heartSelected: { color: '#BF537B' },
   periodTitle: { color: '#454654', fontSize: 14, fontWeight: '700' },
