@@ -22,6 +22,8 @@ export default function JournalQuickNav({ date }: { date: string }) {
     { label: 'Hábitos', detail: 'Personalizar', icon: '✓', color: theme.colors.sageLight, href: '/habits' },
     { label: 'Bem-estar', detail: 'Sono e tela', icon: '☾', color: theme.colors.lavender, href: '/wellness' },
     { label: 'Rotina 24h', detail: 'Seu relógio', icon: '◉', color: theme.colors.apricot, href: '/routine' },
+    { label: 'Estatísticas', detail: 'Meu progresso', icon: '◴', color: theme.colors.lavender, href: '/insights' },
+    { label: 'Privacidade', detail: 'Meus dados', icon: '♡', color: theme.colors.peach, href: '/privacy' },
     { label: 'Backup', detail: 'Guardar meus dados', icon: '▣', color: theme.colors.sageLight, href: '/backup' },
   ];
 
