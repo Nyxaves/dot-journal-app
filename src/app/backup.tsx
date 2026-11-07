@@ -47,7 +47,8 @@ export default function BackupScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Segurança</Text>
           <Text style={styles.body}>A exportação confere a integridade do SQLite antes de gerar a cópia. O banco original não é apagado, substituído ou restaurado.</Text>
-          <Text style={styles.warning}>A restauração automática ainda não está disponível. Guarde o arquivo fora do celular. Ele pode conter dados pessoais: não o compartilhe publicamente.</Text>
+          <Text style={styles.warning}>O banco exportado inclui dados pessoais. Faça a restauração apenas após guardar uma cópia externa segura.</Text>
+          <Pressable style={styles.button} onPress={() => router.push('/restore')}><Text style={styles.buttonLabel}>Importar / restaurar um backup</Text></Pressable>
           {lastBackup && <Text style={styles.meta}>Último arquivo preparado: {lastBackup.fileName} ({lastBackup.bytes} bytes) · integridade {lastBackup.integrity}</Text>}
         </View>
       </ScrollView>

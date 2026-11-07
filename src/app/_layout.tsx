@@ -25,6 +25,9 @@ export default function RootLayout() {
         <Stack.Screen name="wellness" />
         <Stack.Screen name="routine" />
         <Stack.Screen name="backup" />
+        <Stack.Screen name="insights" />
+        <Stack.Screen name="restore" />
+        <Stack.Screen name="privacy" />
       </Stack>
     </>
   );
