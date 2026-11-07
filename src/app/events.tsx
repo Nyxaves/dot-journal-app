@@ -1,25 +1,25 @@
-import KeyboardAwareJournalScrollView from '../components/KeyboardAwareJournalScrollView';
-import DotGridBackground from '../components/DotGridBackground';
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
-import React, { useCallback, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
 import {
   useFocusEffect,
   useLocalSearchParams,
   useRouter,
 } from 'expo-router';
+import { useCallback, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import DotGridBackground from '../components/DotGridBackground';
+import KeyboardAwareJournalScrollView from '../components/KeyboardAwareJournalScrollView';
 
 import {
   createEvent,
