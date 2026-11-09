@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 
 const source = readFileSync('src/app/_layout.tsx', 'utf8');
-for (const name of ['index','annual','monthly','weekly','wellness','routine','backup','restore','insights','privacy']) {
+for (const name of ['index','annual','monthly','weekly','wellness','routine','backup','restore','insights','privacy','reminders']) {
   test(`rota ${name} registrada e tela presente`, () => {
     assert.ok(source.includes(`name="${name}"`));
     assert.ok(existsSync(`src/app/${name}.tsx`));

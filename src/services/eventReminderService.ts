@@ -1,81 +1,117 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
-import { listStoredEvents, type JournalEvent } from '../database/eventRepository';
+import { listStoredEvents } from '../database/eventRepository';
+import {
+  buildUpcomingEventReminderPlan,
+  type PlannedEventReminder,
+} from './eventReminderPlanner';
 import { prepareReminders } from './reminderService';
 
-const CHANNEL_ID = 'dot-journal-daily';
+const CHANNEL_ID = 'dot-journal-events';
 const MARKER = 'dot-journal-event';
+const MAX_SCHEDULED_EVENT_REMINDERS = 24;
 
-function localDate(date: string, time: string | null): Date {
-  const [y, m, d] = date.split('-').map(Number);
-  const [h, min] = (time ?? '09:00').split(':').map(Number);
-  return new Date(y, m - 1, d, h, min);
+export type UpcomingEventReminder = PlannedEventReminder;
+
+function formatDate(date: string): string {
+  const [year, month, day] = date.split('-');
+  return `${day}/${month}/${year}`;
 }
 
-function buildTrigger(event: JournalEvent): Notifications.SchedulableNotificationTriggerInput | null {
-  if (event.reminderMinutes === null) return null;
-  const when = localDate(event.date, event.time);
-  const h = when.getHours();
-  const m = when.getMinutes();
-  const channel = Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {};
-
-  // Enquanto a primeira ocorrência ainda não chegou, não dispara lembretes antes da data inicial.
-  // A recorrência será ativada após a próxima sincronização com a agenda aberta.
-  if (event.recurrence !== 'none' && when.getTime() > Date.now()) {
-    return { type: Notifications.SchedulableTriggerInputTypes.DATE, date: when, ...channel };
-  }
-  if (event.recurrence === 'weekly') {
-    return { type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-      weekday: when.getDay() + 1, hour: h, minute: m, ...channel };
-  }
-  if (event.recurrence === 'monthly') {
-    return { type: Notifications.SchedulableTriggerInputTypes.MONTHLY,
-      day: when.getDate(), hour: h, minute: m, ...channel };
-  }
-  if (event.recurrence === 'yearly') {
-    return { type: Notifications.SchedulableTriggerInputTypes.YEARLY,
-      month: when.getMonth(), day: when.getDate(), hour: h, minute: m, ...channel };
-  }
-  when.setMinutes(when.getMinutes() - event.reminderMinutes);
-  if (when.getTime() <= Date.now()) return null;
-  return { type: Notifications.SchedulableTriggerInputTypes.DATE, date: when, ...channel };
-}
-
-/** Sincroniza só notificações de eventos; o lembrete diário permanece intocado. */
-export async function syncEventReminders(): Promise<{scheduled: number; permissions: boolean}> {
-  if (Platform.OS === 'web') return { scheduled: 0, permissions: true };
+export async function getUpcomingEventReminders(): Promise<UpcomingEventReminder[]> {
   const events = await listStoredEvents();
-  const candidates = events.filter(e => e.reminderMinutes !== null);
-  const old = (await Notifications.getAllScheduledNotificationsAsync())
-    .filter(n => n.content.data?.dotJournalTag === MARKER);
+  return buildUpcomingEventReminderPlan(
+    events,
+    new Date(),
+    400,
+    MAX_SCHEDULED_EVENT_REMINDERS,
+  );
+}
 
-  if (candidates.length) {
+/**
+ * Rebuilds only event notifications. Daily journal reminders use a different
+ * marker and are never cancelled here.
+ *
+ * A rolling queue of up to 100 one-shot notifications is created. The agenda
+ * and reminders screens refresh it whenever they are opened, and CRUD actions
+ * refresh it immediately after saving/deleting an event.
+ */
+export async function syncEventReminders(): Promise<{
+  scheduled: number;
+  permissions: boolean;
+}> {
+  if (Platform.OS === 'web') return { scheduled: 0, permissions: true };
+
+  const events = await listStoredEvents();
+  const plan = buildUpcomingEventReminderPlan(
+    events,
+    new Date(),
+    400,
+    MAX_SCHEDULED_EVENT_REMINDERS,
+  );
+
+  const existing = await Notifications.getAllScheduledNotificationsAsync();
+  const old = existing.filter(
+    (notification) => notification.content.data?.dotJournalTag === MARKER,
+  );
+
+  if (plan.length > 0) {
     await prepareReminders();
-    const permission = await Notifications.getPermissionsAsync();
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
+        name: 'Agenda e compromissos',
+        importance: Notifications.AndroidImportance.DEFAULT,
+      });
+    }
+    let permission = await Notifications.getPermissionsAsync();
     if (!permission.granted) {
-      const requested = await Notifications.requestPermissionsAsync();
-      if (!requested.granted) return { scheduled: old.length, permissions: false };
+      permission = await Notifications.requestPermissionsAsync();
+    }
+    if (!permission.granted) {
+      return { scheduled: old.length, permissions: false };
     }
   }
 
-  // Reagendamento após alterações. Falhas são propagadas à interface.
-  for (const request of old) {
-    await Notifications.cancelScheduledNotificationAsync(request.identifier);
+  // Schedule the new queue first. If any request fails, remove only the new
+  // partial queue and preserve the previous valid reminders.
+  const newlyScheduled: string[] = [];
+  try {
+    for (const item of plan) {
+      const identifier = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: item.type === 'birthday' ? `🎂 ${item.title}` : `✿ ${item.title}`,
+          body: item.reminderMinutes === 0
+            ? `Seu evento acontece agora (${item.eventTime}).`
+            : `Seu evento será em ${formatDate(item.occurrenceDate)} às ${item.eventTime}.`,
+          data: {
+            dotJournalTag: MARKER,
+            eventId: item.eventId,
+            occurrenceDate: item.occurrenceDate,
+          },
+          sound: 'default',
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: item.triggerAt,
+          ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {}),
+        },
+      });
+      newlyScheduled.push(identifier);
+    }
+  } catch (error) {
+    for (const identifier of newlyScheduled) {
+      try {
+        await Notifications.cancelScheduledNotificationAsync(identifier);
+      } catch {
+        // Best-effort cleanup of the partial new queue.
+      }
+    }
+    throw error;
   }
-  let scheduled = 0;
-  for (const event of candidates) {
-    const trigger = buildTrigger(event);
-    if (!trigger) continue;
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: event.type === 'birthday' ? `🎂 ${event.title}` : `✿ ${event.title}`,
-        body: event.type === 'birthday' ? 'Uma data especial no seu Dot Journal!' : 'Você tem um compromisso na agenda.',
-        data: { dotJournalTag: MARKER, eventId: event.id },
-        sound: 'default',
-      },
-      trigger,
-    });
-    scheduled++;
+
+  for (const notification of old) {
+    await Notifications.cancelScheduledNotificationAsync(notification.identifier);
   }
-  return { scheduled, permissions: true };
+
+  return { scheduled: newlyScheduled.length, permissions: true };
 }

@@ -34,6 +34,7 @@ import { syncEventReminders } from '../services/eventReminderService';
 
 const RECURRENCES: { value: EventRecurrence; label: string }[] = [
   { value: 'none', label: 'Não repetir' },
+  { value: 'daily', label: 'Diário' },
   { value: 'weekly', label: 'Semanal' },
   { value: 'monthly', label: 'Mensal' },
   { value: 'yearly', label: 'Anual' },
@@ -41,9 +42,27 @@ const RECURRENCES: { value: EventRecurrence; label: string }[] = [
 const REMINDERS = [
   { value: null, label: 'Sem aviso' },
   { value: 0, label: 'No horário' },
-  { value: 10, label: '10 min antes' },
-  { value: 60, label: '1 h antes' },
+  { value: 5, label: '5 min' },
+  { value: 15, label: '15 min' },
+  { value: 30, label: '30 min' },
+  { value: 60, label: '1 hora' },
+  { value: 1440, label: '1 dia' },
 ] as const;
+
+function reminderLabel(value: number): string {
+  if (value === 0) return 'No horário';
+  if (value === 1440) return '1 dia antes';
+  if (value % 1440 === 0) return `${value / 1440} dias antes`;
+  if (value % 60 === 0) return `${value / 60} h antes`;
+  return `${value} min antes`;
+}
+
+// Mantém a lista como number[]: eventos antigos ou valores personalizados
+// podem conter qualquer quantidade de minutos, não apenas os presets.
+const PRESET_REMINDER_VALUES = REMINDERS.reduce<number[]>((values, item) => {
+  if (item.value !== null) values.push(item.value);
+  return values;
+}, []);
 
 const C = {
   paper: '#FAF7F0',
@@ -147,6 +166,7 @@ export default function EventsScreen() {
   const [description, setDescription] = useState('');
   const [recurrence, setRecurrence] = useState<EventRecurrence>('none');
   const [reminderMinutes, setReminderMinutes] = useState<number | null>(null);
+  const [customReminderInput, setCustomReminderInput] = useState('');
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -206,6 +226,7 @@ export default function EventsScreen() {
     setDescription('');
     setRecurrence('none');
     setReminderMinutes(null);
+    setCustomReminderInput('');
     setEventDate(selectedDate);
     setShowDatePicker(false);
   }
@@ -219,6 +240,11 @@ export default function EventsScreen() {
     setDescription(event.description);
     setRecurrence(event.recurrence);
     setReminderMinutes(event.reminderMinutes);
+    setCustomReminderInput(
+      event.reminderMinutes !== null && !PRESET_REMINDER_VALUES.includes(event.reminderMinutes)
+        ? String(event.reminderMinutes)
+        : ''
+    );
     setEventDate(event.seriesDate ?? event.date);
   }
 
@@ -226,6 +252,16 @@ export default function EventsScreen() {
 
 async function saveEvent() {
   if (saving || !title.trim()) return;
+
+  let finalReminderMinutes = reminderMinutes;
+  if (customReminderInput.trim()) {
+    const customValue = Number(customReminderInput);
+    if (!Number.isInteger(customValue) || customValue < 1 || customValue > 10080) {
+      Alert.alert('Antecedência inválida', 'Informe um valor entre 1 e 10080 minutos (até 7 dias).');
+      return;
+    }
+    finalReminderMinutes = customValue;
+  }
 
   let normalizedStart: string | null;
   let normalizedEnd: string | null;
@@ -273,7 +309,7 @@ async function saveEvent() {
       type,
       description: description.trim(),
       recurrence,
-      reminderMinutes,
+      reminderMinutes: finalReminderMinutes,
     };
 
     if (editingId) {
@@ -294,6 +330,7 @@ async function saveEvent() {
     setDescription('');
     setRecurrence('none');
     setReminderMinutes(null);
+    setCustomReminderInput('');
     setShowDatePicker(false);
 
     // Atualiza o dia exibido na agenda.
@@ -516,7 +553,12 @@ async function saveEvent() {
             {TYPES.map((item) => (
               <Pressable
                 key={item.value}
-                onPress={() => setType(item.value)}
+                onPress={() => {
+                  setType(item.value);
+                  if (item.value === 'birthday') {
+                    setRecurrence('yearly');
+                  }
+                }}
                 style={[
                   styles.typeButton,
                   type === item.value && styles.selectedType,
@@ -532,9 +574,6 @@ async function saveEvent() {
             {RECURRENCES.map((item) => (
               <Pressable key={item.value} onPress={() => {
                 setRecurrence(item.value);
-                if (item.value !== 'none' && reminderMinutes !== null && reminderMinutes !== 0) {
-                  setReminderMinutes(0);
-                }
               }} style={[styles.typeButton, recurrence === item.value && styles.selectedType]}>
                 <Text style={styles.typeText}>{item.label}</Text>
               </Pressable>
@@ -542,15 +581,43 @@ async function saveEvent() {
           </View>
           <Text style={styles.label}>Aviso de compromisso</Text>
           <View style={styles.typeRow}>
-            {REMINDERS.filter(r => recurrence === 'none' || r.value === null || r.value === 0).map((item) => (
-              <Pressable key={String(item.value)} onPress={() => setReminderMinutes(item.value)}
-                style={[styles.typeButton, reminderMinutes === item.value && styles.selectedType]}>
+            {REMINDERS.map((item) => (
+              <Pressable
+                key={String(item.value)}
+                onPress={() => {
+                  setReminderMinutes(item.value);
+                  setCustomReminderInput('');
+                }}
+                style={[styles.typeButton, reminderMinutes === item.value && !customReminderInput && styles.selectedType]}
+              >
                 <Text style={styles.typeText}>{item.label}</Text>
               </Pressable>
             ))}
           </View>
+          <Text style={styles.label}>Outra antecedência (minutos)</Text>
+          <TextInput
+            style={styles.input}
+            value={customReminderInput}
+            onChangeText={(value) => {
+              const digits = value.replace(/\D/g, '').slice(0, 5);
+              setCustomReminderInput(digits);
+              if (!digits) {
+                setReminderMinutes(null);
+              } else {
+                const parsed = Number(digits);
+                if (parsed >= 1 && parsed <= 10080) setReminderMinutes(parsed);
+              }
+            }}
+            keyboardType="number-pad"
+            placeholder="Ex.: 120 para 2 horas"
+            placeholderTextColor={C.muted}
+            maxLength={5}
+          />
+          {customReminderInput !== '' && Number(customReminderInput) >= 1 && Number(customReminderInput) <= 10080 && (
+            <Text style={styles.subtitle}>Aviso: {reminderLabel(Number(customReminderInput))}.</Text>
+          )}
           {recurrence !== 'none' && (
-            <Text style={styles.subtitle}>Editar ou excluir um evento recorrente altera toda a série. Avisos recorrentes são enviados no horário do evento.</Text>
+            <Text style={styles.subtitle}>O evento será repetido automaticamente. O aviso será agendado para cada ocorrência, respeitando a antecedência escolhida. Editar ou excluir altera toda a série.</Text>
           )}
           {reminderMinutes !== null && !time && (
             <Text style={styles.subtitle}>Sem horário definido: o aviso será às 09:00.</Text>
@@ -607,7 +674,7 @@ async function saveEvent() {
                 <Text style={styles.eventMeta}>↻ {RECURRENCES.find(r => r.value === event.recurrence)?.label ?? 'Recorrente'}</Text>
               )}
               {event.reminderMinutes !== null && (
-                <Text style={styles.eventMeta}>🔔 {event.reminderMinutes === 0 ? 'No horário' : `${event.reminderMinutes} min antes`}</Text>
+                <Text style={styles.eventMeta}>🔔 {reminderLabel(event.reminderMinutes)}</Text>
               )}
               <Text style={styles.eventMeta}>
                 {event.time

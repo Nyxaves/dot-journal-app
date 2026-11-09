@@ -8,7 +8,7 @@ export type EventType =
   | 'holiday'
   | 'other';
 
-export type EventRecurrence = 'none' | 'weekly' | 'monthly' | 'yearly';
+export type EventRecurrence = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 export type JournalEvent = {
   id: string;
@@ -117,14 +117,16 @@ function validateInterval(
 }
 
 function validatePreferences(event: Omit<JournalEvent, 'id'>) {
-  if (!['none', 'weekly', 'monthly', 'yearly'].includes(event.recurrence)) {
+  if (!['none', 'daily', 'weekly', 'monthly', 'yearly'].includes(event.recurrence)) {
     throw new Error('Recorrência inválida.');
   }
-  if (event.reminderMinutes !== null && ![0, 10, 60].includes(event.reminderMinutes)) {
-    throw new Error('Lembrete inválido.');
-  }
-  if (event.recurrence !== 'none' && event.reminderMinutes !== null && event.reminderMinutes !== 0) {
-    throw new Error('Eventos recorrentes aceitam lembrete apenas no horário.');
+  if (
+    event.reminderMinutes !== null &&
+    (!Number.isInteger(event.reminderMinutes) ||
+      event.reminderMinutes < 0 ||
+      event.reminderMinutes > 10080)
+  ) {
+    throw new Error('Lembrete inválido. Use um intervalo entre 0 e 7 dias.');
   }
 }
 
@@ -143,6 +145,7 @@ export function eventOccursOn(event: JournalEvent, key: string): boolean {
   if (event.recurrence === 'none') return key === event.date;
   const anchor = fromKey(event.date);
   const target = fromKey(key);
+  if (event.recurrence === 'daily') return true;
   if (event.recurrence === 'weekly') {
     return (target.getTime() - anchor.getTime()) % (7 * 86400000) === 0;
   }

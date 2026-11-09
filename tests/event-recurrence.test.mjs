@@ -38,3 +38,11 @@ test('sem repetição: somente na data original', () => {
   assert.equal(eventOccursOn(evt, '2026-11-06'), true);
   assert.equal(eventOccursOn(evt, '2027-11-06'), false);
 });
+
+test('diário: ocorre em cada data a partir da data inicial', () => {
+  const evt = recurring('2026-11-06', 'daily');
+  assert.equal(eventOccursOn(evt, '2026-11-06'), true);
+  assert.equal(eventOccursOn(evt, '2026-11-07'), true);
+  assert.equal(eventOccursOn(evt, '2026-12-01'), true);
+  assert.equal(eventOccursOn(evt, '2026-11-05'), false);
+});
