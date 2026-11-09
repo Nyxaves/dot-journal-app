@@ -28,7 +28,7 @@ async function readSqliteBytes(file: File): Promise<Uint8Array> {
   } finally { handle.close(); }
 }
 
-async function inspect(bytes: Uint8Array): Promise<Omit<RestorePreview, 'fileName' | 'bytes'>> {
+async function inspect(bytes: Uint8Array, requiredTables: readonly string[] = REQUIRED): Promise<Omit<RestorePreview, 'fileName' | 'bytes'>> {
   if (bytes.length < 100 || HEADER.some((b, i) => bytes[i] !== b)) throw new Error('Arquivo não é um banco SQLite válido.');
   const restored = await SQLite.deserializeDatabaseAsync(bytes);
   try {
@@ -38,7 +38,8 @@ async function inspect(bytes: Uint8Array): Promise<Omit<RestorePreview, 'fileNam
       "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
     );
     const tables = rows.map(x => x.name);
-    if (!REQUIRED.every(x => tables.includes(x))) throw new Error('Backup incompatível: faltam tabelas essenciais do Dot Journal.');
+    const missing = requiredTables.filter((table) => !tables.includes(table));
+    if (missing.length > 0) throw new Error(`Backup incompatível: faltam tabelas essenciais do Dot Journal: ${missing.join(', ')}.`);
     let totalRows = 0;
     for (const table of tables) {
       if (!/^[A-Za-z_][A-Za-z_0-9]*$/.test(table)) throw new Error('Nome de tabela inesperado.');
@@ -49,14 +50,33 @@ async function inspect(bytes: Uint8Array): Promise<Omit<RestorePreview, 'fileNam
   } finally { await restored.closeAsync(); }
 }
 
+/**
+ * Valida bytes SQLite sem modificar o banco ativo.
+ * Também é usado pela restauração de backups criptografados da nuvem.
+ */
+export async function prepareRestoreBytes(
+  fileName: string,
+  bytes: Uint8Array,
+  requiredTables: readonly string[] = REQUIRED
+): Promise<PreparedRestore> {
+  if (bytes.length < 100 || bytes.length > 25 * 1024 * 1024) {
+    throw new Error('O backup precisa ter entre 100 bytes e 25 MB.');
+  }
+  const safeBytes = new Uint8Array(bytes);
+  const details = await inspect(safeBytes, requiredTables);
+  return {
+    bytes: safeBytes,
+    preview: { fileName, bytes: safeBytes.length, ...details },
+  };
+}
+
 /** Seleciona e INSPECIONA um backup sem tocar no banco real. */
 export async function prepareRestore(): Promise<PreparedRestore | null> {
   const picked = await File.pickFileAsync();
   const file = Array.isArray(picked) ? picked[0] : picked;
   if (!file) return null;
   const bytes = await readSqliteBytes(file);
-  const details = await inspect(bytes);
-  return { bytes, preview: { fileName: file.name, bytes: bytes.length, ...details } };
+  return prepareRestoreBytes(file.name, bytes);
 }
 
 /**

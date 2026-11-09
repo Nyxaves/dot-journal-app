@@ -2,10 +2,17 @@ import * as SQLite from 'expo-sqlite';
 import * as SecureStore from 'expo-secure-store';
 import {
   AESEncryptionKey,
+  AESSealedData,
+  aesDecryptAsync,
   aesEncryptAsync,
 } from 'expo-crypto';
 
 import { getSupabaseClient } from './supabaseClient';
+import {
+  applyRestore,
+  prepareRestoreBytes,
+  type PreparedRestore,
+} from '../database/restoreRepository';
 import { getDailyData } from '../database/dailyRepository';
 import { listHabits } from '../database/habitRepository';
 import { listMicroGoals } from '../database/microGoalRepository';
@@ -27,6 +34,21 @@ const AUTO_BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 // "DJBK" + format version 1. AES-GCM payload follows this header.
 const ENCRYPTED_BACKUP_HEADER = new Uint8Array([68, 74, 66, 75, 1, 0, 0, 0]);
+const CLOUD_REQUIRED_TABLES = [
+  'daily_entries',
+  'daily_checks',
+  'habits',
+  'journal_events',
+  'annual_goals',
+  'personal_day_tracking',
+  'wellness_entries',
+  'routine_blocks',
+  'routine_categories',
+  'routine_settings',
+  'weekly_goals',
+  'micro_goals',
+] as const;
+
 const SQLITE_HEADER = new Uint8Array([
   83, 81, 76, 105, 116, 101, 32, 102, 111, 114, 109, 97, 116, 32, 51, 0,
 ]);
@@ -252,6 +274,94 @@ export async function listCloudBackups(): Promise<CloudBackupItem[]> {
     }));
 }
 
+
+/**
+ * Baixa um objeto privado, valida o envelope DJBK, descriptografa localmente
+ * com AES-256-GCM e valida todas as tabelas esperadas sem tocar no banco ativo.
+ */
+export async function prepareCloudBackupRestore(
+  backupName: string
+): Promise<PreparedRestore> {
+  const { client, user } = await requireSignedInUser();
+  const keyHex = await SecureStore.getItemAsync(ENCRYPTION_KEY_STORAGE);
+  const confirmed = await SecureStore.getItemAsync(KEY_CONFIRMED_STORAGE);
+
+  if (!keyHex || confirmed !== 'true') {
+    throw new Error('Importe sua chave de recuperação, guarde-a em local seguro e confirme antes de restaurar.');
+  }
+
+  // O nome vem da listagem do bucket, mas é validado novamente antes de formar o caminho.
+  if (
+    !/^[A-Za-z0-9][A-Za-z0-9._-]{0,180}\.djbackup$/.test(backupName) ||
+    backupName.includes('..') ||
+    backupName.includes('/')
+  ) {
+    throw new Error('Nome de backup inválido.');
+  }
+
+  const objectPath = `${user.id}/${backupName}`;
+  const { data, error } = await client.storage
+    .from(CLOUD_BACKUP_BUCKET)
+    .download(objectPath);
+
+  if (error) throw error;
+  if (!data) throw new Error('O Supabase não retornou o arquivo de backup.');
+  if (data.size < ENCRYPTED_BACKUP_HEADER.length + 32 || data.size > MAX_BACKUP_BYTES) {
+    throw new Error('O arquivo criptografado está vazio ou ultrapassa o limite de 25 MB.');
+  }
+
+  const encryptedFile = new Uint8Array(await data.arrayBuffer());
+  if (encryptedFile.length !== data.size) {
+    throw new Error('O download do backup ficou incompleto.');
+  }
+
+  const headerMatches = ENCRYPTED_BACKUP_HEADER.every(
+    (byte, index) => encryptedFile[index] === byte
+  );
+  if (!headerMatches) {
+    throw new Error('Formato de backup desconhecido ou versão não suportada.');
+  }
+
+  let sqliteBytes: Uint8Array;
+  try {
+    const sealedData = AESSealedData.fromCombined(
+      encryptedFile.subarray(ENCRYPTED_BACKUP_HEADER.length)
+    );
+    const key = await AESEncryptionKey.import(keyHex, 'hex');
+    const decrypted = await aesDecryptAsync(sealedData, key, { output: 'bytes' });
+    if (typeof decrypted === 'string') {
+      throw new Error('A descriptografia não retornou bytes.');
+    }
+    sqliteBytes = new Uint8Array(decrypted);
+  } catch {
+    throw new Error('Não foi possível descriptografar este backup. Confira se a chave de recuperação é a mesma usada no envio.');
+  }
+
+  if (
+    sqliteBytes.length < 100 ||
+    sqliteBytes.length > MAX_BACKUP_BYTES ||
+    SQLITE_HEADER.some((byte, index) => sqliteBytes[index] !== byte)
+  ) {
+    throw new Error('O conteúdo descriptografado não é um banco SQLite válido.');
+  }
+
+  return prepareRestoreBytes(backupName, sqliteBytes, CLOUD_REQUIRED_TABLES);
+}
+
+/**
+ * Aplica um backup previamente validado. applyRestore salva um snapshot do
+ * banco atual em Documents antes da troca e tenta rollback em caso de falha.
+ */
+export async function applyCloudBackupRestore(
+  prepared: PreparedRestore
+): Promise<string> {
+  const recoveryName = await applyRestore(prepared);
+  // Evita que a instalação restaurada envie automaticamente um backup vazio
+  // ou desatualizado imediatamente após a recuperação.
+  await SecureStore.setItemAsync(LAST_BACKUP_STORAGE, new Date().toISOString());
+  return recoveryName;
+}
+
 export async function maybeCreateDailyCloudBackup(): Promise<
   'uploaded' | 'not-due' | 'not-ready'
 > {
@@ -263,9 +373,13 @@ export async function maybeCreateDailyCloudBackup(): Promise<
 
   if (!key || confirmed !== 'true') return 'not-ready';
 
-  const lastTimestamp = lastBackupAt ? Date.parse(lastBackupAt) : Number.NaN;
+  // Primeiro backup sempre é manual. Em um aparelho novo, não envia um
+  // banco vazio por cima do histórico remoto antes de o usuário restaurá-lo.
+  if (!lastBackupAt) return 'not-due';
+
+  const lastTimestamp = Date.parse(lastBackupAt);
   if (
-    Number.isFinite(lastTimestamp) &&
+    !Number.isFinite(lastTimestamp) ||
     Date.now() - lastTimestamp < AUTO_BACKUP_INTERVAL_MS
   ) {
     return 'not-due';

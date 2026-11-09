@@ -102,3 +102,22 @@ O SQLite permanece como banco principal no Android. A integração opcional com 
 **Atenção:** guarde a chave de recuperação fora do celular. Sem ela, os arquivos criptografados não podem ser recuperados em outro aparelho. A restauração dos backups da nuvem será implementada na Fase 17.
 
 Consulte `docs/FASE-16-BACKUP-PRIVADO.md` para configuração do projeto Supabase, SQL, variáveis de ambiente e roteiro de validação.
+
+
+---
+
+## Restauração de backups privados (Fase 17)
+
+A central de backup permite restaurar um arquivo criptografado `.djbackup` do bucket privado do Supabase.
+
+- Download autenticado da pasta do próprio usuário.
+- Validação do envelope e versão do arquivo.
+- Descriptografia local AES-256-GCM.
+- Verificação do SQLite em memória antes de tocar no banco ativo.
+- Conferência das tabelas essenciais e contagem de registros.
+- Confirmação destrutiva digitando `RESTAURAR`.
+- Cópia de recuperação do banco atual em `Documents`.
+- Aplicação via SQLite Backup API e tentativa de rollback se ocorrer falha.
+- Proteção contra envio automático de banco vazio em um aparelho recém-configurado.
+
+A restauração substitui o banco inteiro e não mescla registros. Após a conclusão, feche completamente e reabra o aplicativo. Consulte `docs/FASE-17-RESTAURACAO-NUVEM.md`.
