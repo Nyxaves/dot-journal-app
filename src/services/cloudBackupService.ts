@@ -1,4 +1,5 @@
 import * as SQLite from 'expo-sqlite';
+import { fetch as expoFetch } from 'expo/fetch';
 import * as SecureStore from 'expo-secure-store';
 import {
   AESEncryptionKey,
@@ -299,21 +300,41 @@ export async function prepareCloudBackupRestore(
     throw new Error('Nome de backup inválido.');
   }
 
-  const objectPath = `${user.id}/${backupName}`;
-  const { data, error } = await client.storage
-    .from(CLOUD_BACKUP_BUCKET)
-    .download(objectPath);
+  
+const objectPath = `${user.id}/${backupName}`;
 
-  if (error) throw error;
-  if (!data) throw new Error('O Supabase não retornou o arquivo de backup.');
-  if (data.size < ENCRYPTED_BACKUP_HEADER.length + 32 || data.size > MAX_BACKUP_BYTES) {
-    throw new Error('O arquivo criptografado está vazio ou ultrapassa o limite de 25 MB.');
-  }
+// Gera uma URL temporária para acessar o arquivo privado.
+const { data: signedData, error: signedUrlError } = await client.storage
+  .from(CLOUD_BACKUP_BUCKET)
+  .createSignedUrl(objectPath, 60);
 
-  const encryptedFile = new Uint8Array(await data.arrayBuffer());
-  if (encryptedFile.length !== data.size) {
-    throw new Error('O download do backup ficou incompleto.');
-  }
+if (signedUrlError) throw signedUrlError;
+
+if (!signedData?.signedUrl) {
+  throw new Error('Não foi possível gerar o link temporário do backup.');
+}
+
+// Download binário usando o Fetch compatível com Expo.
+const response = await expoFetch(signedData.signedUrl);
+
+if (!response.ok) {
+  throw new Error(
+    `Falha ao baixar backup da nuvem. HTTP ${response.status}.`
+  );
+}
+
+const encryptedFile = new Uint8Array(
+  await response.arrayBuffer()
+);
+
+if (
+  encryptedFile.byteLength < ENCRYPTED_BACKUP_HEADER.length + 32 ||
+  encryptedFile.byteLength > MAX_BACKUP_BYTES
+) {
+  throw new Error(
+    'O arquivo criptografado está vazio ou ultrapassa o limite de 25 MB.'
+  );
+}
 
   const headerMatches = ENCRYPTED_BACKUP_HEADER.every(
     (byte, index) => encryptedFile[index] === byte

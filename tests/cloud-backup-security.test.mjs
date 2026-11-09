@@ -46,9 +46,11 @@ test('central de backup e instruções existem', () => {
 
 
 test('restauração da nuvem baixa e descriptografa antes de validar o SQLite', () => {
+  assert.ok(service.includes('createSignedUrl(objectPath, 60)'));
+  assert.ok(service.includes('expoFetch(signedData.signedUrl)'));
+  assert.ok(service.includes('response.arrayBuffer()'));
   assert.ok(service.includes('AESSealedData.fromCombined'));
   assert.ok(service.includes('aesDecryptAsync'));
-  assert.ok(service.includes('.download(objectPath)'));
   assert.ok(service.includes('prepareRestoreBytes(backupName, sqliteBytes, CLOUD_REQUIRED_TABLES)'));
 });
 
