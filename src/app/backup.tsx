@@ -45,6 +45,13 @@ export default function BackupScreen() {
           </Pressable>
         </View>
         <View style={styles.card}>
+          <Text style={styles.cardTitle}>Backup privado na nuvem</Text>
+          <Text style={styles.body}>Envie uma cópia criptografada do SQLite para sua conta privada. O banco local continua sendo a fonte principal.</Text>
+          <Pressable style={styles.button} onPress={() => router.push('/cloud-backup')}>
+            <Text style={styles.buttonLabel}>Abrir backup privado</Text>
+          </Pressable>
+        </View>
+        <View style={styles.card}>
           <Text style={styles.cardTitle}>Segurança</Text>
           <Text style={styles.body}>A exportação confere a integridade do SQLite antes de gerar a cópia. O banco original não é apagado, substituído ou restaurado.</Text>
           <Text style={styles.warning}>O banco exportado inclui dados pessoais. Faça a restauração apenas após guardar uma cópia externa segura.</Text>

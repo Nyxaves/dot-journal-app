@@ -82,4 +82,67 @@ Exemplos de sugestões
 - **Privacidade:** documentos SQLite exportados contêm informações pessoais, inclusive humor e menstruação; não são criptografados pelo aplicativo.
 - **Qualidade:** o GitHub Actions executa TypeScript e testes estruturais em Pull Requests.
 
-Consulte `docs/ENTREGA-UNIFICADA.md` para instruções e limitações. Supabase, notificações e publicação em loja ainda não foram integrados.
+Consulte `docs/ENTREGA-UNIFICADA.md` para instruções e limitações. O Supabase está integrado somente para backup privado criptografado; não há sincronização de registros entre dispositivos nem restauração a partir da nuvem nesta fase.
+
+
+---
+
+## Backup privado na nuvem (Fase 16)
+
+O SQLite permanece como banco principal no Android. A integração opcional com Supabase é utilizada somente para autenticação pessoal e armazenamento de cópias criptografadas do banco.
+
+- Conta pessoal por e-mail e senha.
+- Sessão guardada no Android SecureStore.
+- Snapshot SQLite validado antes do envio.
+- Criptografia local AES-256-GCM com `expo-crypto`.
+- Bucket privado e políticas de Storage limitadas à pasta do usuário.
+- Chave de recuperação gerada localmente; não é enviada ao Supabase.
+- Verificação diária de backup ao abrir a central, além do envio manual.
+
+**Atenção:** guarde a chave de recuperação fora do celular. Sem ela, os arquivos criptografados não podem ser recuperados em outro aparelho. A restauração dos backups da nuvem será implementada na Fase 17.
+
+Consulte `docs/FASE-16-BACKUP-PRIVADO.md` para configuração do projeto Supabase, SQL, variáveis de ambiente e roteiro de validação.
+
+
+---
+
+## Restauração de backups privados (Fase 17)
+
+A central de backup permite restaurar um arquivo criptografado `.djbackup` do bucket privado do Supabase.
+
+- Download autenticado da pasta do próprio usuário.
+- Validação do envelope e versão do arquivo.
+- Descriptografia local AES-256-GCM.
+- Verificação do SQLite em memória antes de tocar no banco ativo.
+- Conferência das tabelas essenciais e contagem de registros.
+- Confirmação destrutiva digitando `RESTAURAR`.
+- Cópia de recuperação do banco atual em `Documents`.
+- Aplicação via SQLite Backup API e tentativa de rollback se ocorrer falha.
+- Proteção contra envio automático de banco vazio em um aparelho recém-configurado.
+
+A restauração substitui o banco inteiro e não mescla registros. Após a conclusão, feche completamente e reabra o aplicativo. Consulte `docs/FASE-17-RESTAURACAO-NUVEM.md`.
+
+## Instalação pessoal no Android
+
+O Dot Journal é um aplicativo pessoal para Android, construído com React Native, Expo, TypeScript e SQLite. O banco principal fica no aparelho. Supabase Auth e Storage são utilizados para armazenar backups privados criptografados.
+
+Para gerar um APK de teste/uso pessoal com a configuração existente:
+
+```powershell
+npx tsc --noEmit
+node --test tests/*.test.mjs
+npx expo install --check
+npx eas-cli@latest build --platform android --profile preview
+```
+
+Instale o novo APK por cima do aplicativo existente. Não desinstale ou limpe os dados antes de garantir um backup recuperável.
+
+### Proteção dos dados
+
+- Crie um backup manual antes de trocar de aparelho ou reinstalar.
+- Confira a pré-visualização e a integridade do arquivo antes de uma restauração.
+- Guarde a chave de recuperação em local seguro fora do celular.
+- Não versionar `.env.local`, chaves, senhas nem backups pessoais.
+- A restauração substitui integralmente o banco local.
+
+Veja [Guia de entrega Android](docs/FASE-19-ENTREGA-ANDROID.md) e [Auditoria da Fase 18](docs/FASE-18-AUDITORIA-FINAL.md).

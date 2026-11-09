@@ -1,8 +1,28 @@
 
 import { Stack } from 'expo-router';
+import { AppState } from 'react-native';
+import { useEffect } from 'react';
+import { getSupabaseClient } from '../services/supabaseClient';
 import { StatusBar } from 'expo-status-bar';
 
 export default function RootLayout() {
+  useEffect(() => {
+    const client = getSupabaseClient();
+    if (!client) return;
+
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') client.auth.startAutoRefresh();
+      else client.auth.stopAutoRefresh();
+    });
+
+    if (AppState.currentState === 'active') client.auth.startAutoRefresh();
+
+    return () => {
+      subscription.remove();
+      client.auth.stopAutoRefresh();
+    };
+  }, []);
+
   return (
     <>
       <StatusBar style="dark" />
@@ -25,9 +45,11 @@ export default function RootLayout() {
         <Stack.Screen name="wellness" />
         <Stack.Screen name="routine" />
         <Stack.Screen name="backup" />
+        <Stack.Screen name="cloud-backup" />
         <Stack.Screen name="insights" />
         <Stack.Screen name="restore" />
         <Stack.Screen name="privacy" />
+        <Stack.Screen name="reminders" />
       </Stack>
     </>
   );
