@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, Text
 import { useFocusEffect, useRouter } from 'expo-router';
 import DotGridBackground from '../components/DotGridBackground';
 import { disableDailyReminder, listDailyReminders, saveDailyReminder, sendTestReminder } from '../services/reminderService';
+import { getUpcomingEventReminders, syncEventReminders } from '../services/eventReminderService';
 
 const C = { paper: '#FAF7F0', card: '#FFFDF9', ink: '#454654', line: '#E7E1D8', pink: '#F7DDE6', muted: '#77727C' };
 const toNumber = (v: string) => /^\d{1,2}$/.test(v) ? Number(v) : NaN;
@@ -15,11 +16,18 @@ export default function RemindersScreen() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [upcomingEvents, setUpcomingEvents] = useState<Awaited<ReturnType<typeof getUpcomingEventReminders>>>([]);
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
       const saved = await listDailyReminders();
+      const eventPlan = await getUpcomingEventReminders();
+      setUpcomingEvents(eventPlan);
+      const syncResult = await syncEventReminders();
+      if (!syncResult.permissions && eventPlan.length > 0) {
+        setError('Ative as permissões de notificação nas configurações do celular para receber os avisos dos eventos.');
+      }
       if (saved.length) {
         setEnabled(true);
         const trigger = saved[0].trigger;
@@ -71,6 +79,22 @@ export default function RemindersScreen() {
           <Text style={s.buttonText}>Enviar teste</Text>
         </Pressable>
       </View>
+      <View style={s.card}>
+        <Text style={s.heading}>Próximos avisos da agenda</Text>
+        <Text style={s.desc}>Lembretes dos seus compromissos, eventos recorrentes e aniversários.</Text>
+        {upcomingEvents.length === 0 ? (
+          <Text style={s.status}>Nenhum aviso de evento agendado. Cadastre um evento com lembrete na agenda.</Text>
+        ) : upcomingEvents.slice(0, 20).map((item, index) => (
+          <View key={`${item.eventId}-${item.occurrenceDate}-${index}`} style={s.upcomingItem}>
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text style={s.upcomingTitle}>{item.type === 'birthday' ? '🎂 ' : '✿ '}{item.title}</Text>
+              <Text style={s.status}>{item.occurrenceDate.split('-').reverse().join('/')} · {item.eventTime}</Text>
+            </View>
+            <Text style={s.upcomingTime}>{item.triggerAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</Text>
+          </View>
+        ))}
+        <Text style={s.note}>A agenda mantém uma fila local dos próximos 24 avisos em até 400 dias. Ao abrir esta tela ou a agenda, a fila é atualizada. O Android pode atrasar notificações por economia de bateria.</Text>
+      </View>
       {!!error && <Text style={s.error}>{error}</Text>}
       <Text style={s.note}>O Android pode atrasar lembretes devido à economia de bateria. Não use como alarme crítico. O horário segue o fuso local do aparelho; alterações de fuso ou permissões podem afetar a entrega.</Text>
     </ScrollView>
@@ -88,4 +112,7 @@ const s = StyleSheet.create({
   sep:{fontSize:22,color:C.ink},button:{padding:14,borderRadius:12,backgroundColor:C.line,alignItems:'center'},
   primary:{backgroundColor:C.pink},buttonText:{color:C.ink,fontWeight:'700'},
   note:{fontSize:12,lineHeight:19,color:C.muted},error:{color:'#AE4040',fontSize:13},
+  upcomingItem:{flexDirection:'row',alignItems:'center',gap:12,paddingVertical:10,borderBottomWidth:1,borderBottomColor:C.line},
+  upcomingTitle:{fontSize:14,fontWeight:'700',color:C.ink},
+  upcomingTime:{fontSize:13,fontWeight:'700',color:C.ink,backgroundColor:C.pink,paddingHorizontal:10,paddingVertical:7,borderRadius:9},
 });
