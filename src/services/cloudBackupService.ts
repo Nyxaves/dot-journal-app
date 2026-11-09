@@ -1,5 +1,5 @@
 import * as SQLite from 'expo-sqlite';
-import { fetch as expoFetch } from 'expo/fetch';
+import { File, Paths } from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
 import {
   AESEncryptionKey,
@@ -187,14 +187,59 @@ async function createEncryptedSnapshot(): Promise<Uint8Array> {
     throw new Error(`O banco ainda não está completo. Tabelas ausentes: ${missing.join(', ')}.`);
   }
 
-  const snapshot = await db.serializeAsync();
-  if (
-    snapshot.byteLength < 100 ||
-    SQLITE_HEADER.some((byte, index) => snapshot[index] !== byte)
-  ) {
-    throw new Error('O snapshot não possui um cabeçalho SQLite válido.');
+  // SQLite.backupDatabaseAsync é a API adequada para uma cópia consistente
+  // de banco em WAL; serialização direta da conexão ativa não é suficiente
+  // para assumir que as tabelas estão presentes nos bytes exportados.
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+  const name = `dot-journal-cloud-snapshot-${stamp}.sqlite`;
+  const directory = decodeURIComponent(Paths.cache.uri.replace(/^file:\/\//, ''));
+  let temp: SQLite.SQLiteDatabase | null = null;
+  try {
+    temp = await SQLite.openDatabaseAsync(name, { useNewConnection: true }, directory);
+
+    await SQLite.backupDatabaseAsync({
+      sourceDatabase: db,
+      destDatabase: temp,
+      sourceDatabaseName: 'main',
+      destDatabaseName: 'main',
+    });
+
+    // Uma cópia em journaling DELETE não depende de arquivos WAL/SHM.
+    await temp.execAsync('PRAGMA wal_checkpoint(TRUNCATE);');
+    await temp.execAsync('PRAGMA journal_mode = DELETE;');
+
+    const copiedTables = await temp.getAllAsync<{ name: string }>(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+    );
+    const copiedNames = new Set(copiedTables.map((row) => row.name));
+    const lostTables = required.filter((table) => !copiedNames.has(table));
+    if (lostTables.length > 0) {
+      throw new Error(`Snapshot incompleto: tabelas ausentes após copiar o SQLite (${lostTables.join(', ')}). Envio cancelado.`);
+    }
+
+    const snapshot = await temp.serializeAsync();
+    if (
+      snapshot.byteLength < 100 ||
+      SQLITE_HEADER.some((byte, index) => snapshot[index] !== byte)
+    ) {
+      throw new Error('O snapshot não possui um cabeçalho SQLite válido.');
+    }
+
+    // Abre OS BYTES finais com o mesmo inspetor usado na restauração.
+    // Não enviar backups que o próprio app é incapaz de restaurar.
+    await prepareRestoreBytes(name, snapshot, CLOUD_REQUIRED_TABLES);
+    return snapshot;
+  } finally {
+    if (temp) await temp.closeAsync();
+    for (const suffix of ['', '-wal', '-shm', '-journal']) {
+      const file = new File(Paths.cache, name + suffix);
+      if (file.exists) {
+        try { file.delete(); } catch (cleanupError) {
+          console.warn('Falha ao remover o snapshot temporário', suffix, cleanupError);
+        }
+      }
+    }
   }
-  return snapshot;
 }
 
 export async function uploadCloudBackup(): Promise<{
@@ -300,41 +345,37 @@ export async function prepareCloudBackupRestore(
     throw new Error('Nome de backup inválido.');
   }
 
+  const objectPath = `${user.id}/${backupName}`;
+  const { data, error } = await client.storage
+    .from(CLOUD_BACKUP_BUCKET)
+    .download(objectPath);
+
+  if (error) throw error;
+  if (!data) throw new Error('O Supabase não retornou o arquivo de backup.');
+  if (data.size < ENCRYPTED_BACKUP_HEADER.length + 32 || data.size > MAX_BACKUP_BYTES) {
+    throw new Error('O arquivo criptografado está vazio ou ultrapassa o limite de 25 MB.');
+  }
+
   
-const objectPath = `${user.id}/${backupName}`;
+const encryptedFile = await new Promise<Uint8Array>((resolve, reject) => {
+  const reader = new FileReader();
 
-// Gera uma URL temporária para acessar o arquivo privado.
-const { data: signedData, error: signedUrlError } = await client.storage
-  .from(CLOUD_BACKUP_BUCKET)
-  .createSignedUrl(objectPath, 60);
+  reader.onload = () => {
+    if (!(reader.result instanceof ArrayBuffer)) {
+      reject(new Error('O arquivo não foi convertido para ArrayBuffer.'));
+      return;
+    }
 
-if (signedUrlError) throw signedUrlError;
+    resolve(new Uint8Array(reader.result));
+  };
 
-if (!signedData?.signedUrl) {
-  throw new Error('Não foi possível gerar o link temporário do backup.');
-}
+  reader.onerror = () => {
+    reject(new Error('Falha ao ler o arquivo baixado do Supabase.'));
+  };
 
-// Download binário usando o Fetch compatível com Expo.
-const response = await expoFetch(signedData.signedUrl);
+  reader.readAsArrayBuffer(data);
+});
 
-if (!response.ok) {
-  throw new Error(
-    `Falha ao baixar backup da nuvem. HTTP ${response.status}.`
-  );
-}
-
-const encryptedFile = new Uint8Array(
-  await response.arrayBuffer()
-);
-
-if (
-  encryptedFile.byteLength < ENCRYPTED_BACKUP_HEADER.length + 32 ||
-  encryptedFile.byteLength > MAX_BACKUP_BYTES
-) {
-  throw new Error(
-    'O arquivo criptografado está vazio ou ultrapassa o limite de 25 MB.'
-  );
-}
 
   const headerMatches = ENCRYPTED_BACKUP_HEADER.every(
     (byte, index) => encryptedFile[index] === byte

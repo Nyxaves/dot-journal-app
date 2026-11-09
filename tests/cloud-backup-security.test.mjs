@@ -46,11 +46,9 @@ test('central de backup e instruções existem', () => {
 
 
 test('restauração da nuvem baixa e descriptografa antes de validar o SQLite', () => {
-  assert.ok(service.includes('createSignedUrl(objectPath, 60)'));
-  assert.ok(service.includes('expoFetch(signedData.signedUrl)'));
-  assert.ok(service.includes('response.arrayBuffer()'));
   assert.ok(service.includes('AESSealedData.fromCombined'));
   assert.ok(service.includes('aesDecryptAsync'));
+  assert.ok(service.includes('.download(objectPath)'));
   assert.ok(service.includes('prepareRestoreBytes(backupName, sqliteBytes, CLOUD_REQUIRED_TABLES)'));
 });
 
@@ -84,4 +82,13 @@ test('tela oferece preview e confirmação explícita antes de substituir dados'
   assert.ok(screen.includes('Digite RESTAURAR para confirmar'));
   assert.ok(screen.includes("restorePhrase !== 'RESTAURAR'"));
   assert.ok(screen.includes('Cancelar restauração'));
+});
+
+
+test('snapshot cifrado é copiado por SQLite backup API e validado antes do envio', () => {
+  assert.ok(service.includes('SQLite.backupDatabaseAsync({'));
+  assert.ok(service.includes('sourceDatabase: db'));
+  assert.ok(service.includes('destDatabase: temp'));
+  assert.ok(service.includes('prepareRestoreBytes(name, snapshot, CLOUD_REQUIRED_TABLES)'));
+  assert.ok(service.indexOf('prepareRestoreBytes(name, snapshot, CLOUD_REQUIRED_TABLES)') < service.indexOf('const sealed = await aesEncryptAsync'));
 });
