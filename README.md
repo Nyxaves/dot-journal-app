@@ -82,4 +82,23 @@ Exemplos de sugestões
 - **Privacidade:** documentos SQLite exportados contêm informações pessoais, inclusive humor e menstruação; não são criptografados pelo aplicativo.
 - **Qualidade:** o GitHub Actions executa TypeScript e testes estruturais em Pull Requests.
 
-Consulte `docs/ENTREGA-UNIFICADA.md` para instruções e limitações. Supabase, notificações e publicação em loja ainda não foram integrados.
+Consulte `docs/ENTREGA-UNIFICADA.md` para instruções e limitações. O Supabase está integrado somente para backup privado criptografado; não há sincronização de registros entre dispositivos nem restauração a partir da nuvem nesta fase.
+
+
+---
+
+## Backup privado na nuvem (Fase 16)
+
+O SQLite permanece como banco principal no Android. A integração opcional com Supabase é utilizada somente para autenticação pessoal e armazenamento de cópias criptografadas do banco.
+
+- Conta pessoal por e-mail e senha.
+- Sessão guardada no Android SecureStore.
+- Snapshot SQLite validado antes do envio.
+- Criptografia local AES-256-GCM com `expo-crypto`.
+- Bucket privado e políticas de Storage limitadas à pasta do usuário.
+- Chave de recuperação gerada localmente; não é enviada ao Supabase.
+- Verificação diária de backup ao abrir a central, além do envio manual.
+
+**Atenção:** guarde a chave de recuperação fora do celular. Sem ela, os arquivos criptografados não podem ser recuperados em outro aparelho. A restauração dos backups da nuvem será implementada na Fase 17.
+
+Consulte `docs/FASE-16-BACKUP-PRIVADO.md` para configuração do projeto Supabase, SQL, variáveis de ambiente e roteiro de validação.
