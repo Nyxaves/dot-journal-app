@@ -23,8 +23,11 @@ import {
   maybeCreateDailyCloudBackup,
   revealRecoveryKey,
   uploadCloudBackup,
+  prepareCloudBackupRestore,
+  applyCloudBackupRestore,
   type CloudBackupItem,
 } from '../services/cloudBackupService';
+import type { PreparedRestore } from '../database/restoreRepository';
 
 const client = getSupabaseClient();
 
@@ -56,6 +59,9 @@ export default function CloudBackupScreen() {
   const [recoveryInput, setRecoveryInput] = useState('');
   const [showImport, setShowImport] = useState(false);
   const [backups, setBackups] = useState<CloudBackupItem[]>([]);
+  const [preparedRestore, setPreparedRestore] = useState<PreparedRestore | null>(null);
+  const [preparedRestoreName, setPreparedRestoreName] = useState('');
+  const [restorePhrase, setRestorePhrase] = useState('');
 
   useEffect(() => {
     if (!client) {
@@ -254,6 +260,61 @@ export default function CloudBackupScreen() {
     }
   }
 
+
+  async function prepareRestore(backup: CloudBackupItem) {
+    if (busy) return;
+    setBusy(true);
+    setNotice('');
+    setPreparedRestore(null);
+    setPreparedRestoreName('');
+    setRestorePhrase('');
+    try {
+      const prepared = await prepareCloudBackupRestore(backup.name);
+      setPreparedRestore(prepared);
+      setPreparedRestoreName(backup.name);
+      setNotice('Backup baixado, descriptografado e validado. Confira os dados antes de confirmar a substituição.');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Não foi possível preparar a restauração.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmCloudRestore() {
+    if (!preparedRestore || restorePhrase !== 'RESTAURAR' || busy) return;
+
+    Alert.alert(
+      'Substituir todos os dados locais?',
+      'O banco SQLite atual será copiado para a pasta Documents antes da substituição. O backup selecionado substituirá o banco inteiro; não haverá mesclagem. Feche e reabra o aplicativo após a conclusão.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Restaurar agora',
+          style: 'destructive',
+          onPress: () => {
+            setBusy(true);
+            setNotice('');
+            void applyCloudBackupRestore(preparedRestore)
+              .then((recoveryName) => {
+                setPreparedRestore(null);
+                setPreparedRestoreName('');
+                setRestorePhrase('');
+                setNotice(`Restauração concluída. Cópia de segurança anterior: ${recoveryName}. Feche completamente e reabra o aplicativo antes de continuar.`);
+                Alert.alert(
+                  'Restauração concluída',
+                  `Seu diário foi restaurado. A cópia anterior foi salva em Documents/${recoveryName}. Feche completamente e reabra o Dot Journal agora.`
+                );
+              })
+              .catch((error) => {
+                setNotice(error instanceof Error ? error.message : 'A restauração falhou. Seus dados atuais foram preservados ou o rollback foi acionado.');
+              })
+              .finally(() => setBusy(false));
+          },
+        },
+      ]
+    );
+  }
+
   async function signOut() {
     if (!client) return;
     Alert.alert('Sair da conta?', 'Os backups na nuvem não serão apagados. A chave de criptografia continuará protegida neste aparelho.', [
@@ -444,13 +505,63 @@ export default function CloudBackupScreen() {
                   <View key={backup.name} style={styles.backupItem}>
                     <Text style={styles.backupName}>{backup.name}</Text>
                     <Text style={styles.meta}>{formatDate(backup.createdAt)} · {formatBytes(backup.bytes)}</Text>
+                    <Pressable
+                      disabled={busy || !keyConfirmed}
+                      style={[styles.secondaryButton, (busy || !keyConfirmed) && styles.disabled]}
+                      onPress={() => void prepareRestore(backup)}
+                    >
+                      <Text style={styles.buttonText}>Baixar e verificar para restaurar</Text>
+                    </Pressable>
                   </View>
                 ))
               )}
               <Text style={styles.warning}>
-                A restauração desses arquivos será implementada na próxima etapa. Por enquanto, esta tela envia e lista cópias criptografadas.
+                Você pode baixar, verificar e restaurar qualquer backup listado usando sua chave de recuperação.
               </Text>
             </View>
+
+            {!!preparedRestore && (
+              <View style={styles.card}>
+                <Text style={styles.heading}>4. Conferir restauração</Text>
+                <Text style={styles.body}>Arquivo: {preparedRestoreName}</Text>
+                <Text style={styles.meta}>
+                  SQLite íntegro · {preparedRestore.preview.tables.length} tabelas · {preparedRestore.preview.totalRows} registros · {formatBytes(preparedRestore.preview.bytes)}
+                </Text>
+                <Text style={styles.body}>
+                  Tabelas verificadas: {preparedRestore.preview.tables.join(', ')}
+                </Text>
+                <Text style={styles.warning}>
+                  A restauração substitui o banco inteiro do aparelho. Não mescla registros. Antes da troca, o aplicativo cria uma cópia do banco atual em Documents.
+                </Text>
+                <Text style={styles.label}>Digite RESTAURAR para confirmar</Text>
+                <TextInput
+                  value={restorePhrase}
+                  onChangeText={setRestorePhrase}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  placeholder="RESTAURAR"
+                  style={styles.input}
+                />
+                <Pressable
+                  disabled={busy || restorePhrase !== 'RESTAURAR'}
+                  style={[styles.dangerButton, (busy || restorePhrase !== 'RESTAURAR') && styles.disabled]}
+                  onPress={() => void confirmCloudRestore()}
+                >
+                  <Text style={styles.buttonText}>Restaurar banco completo</Text>
+                </Pressable>
+                <Pressable
+                  disabled={busy}
+                  style={styles.secondaryButton}
+                  onPress={() => {
+                    setPreparedRestore(null);
+                    setPreparedRestoreName('');
+                    setRestorePhrase('');
+                  }}
+                >
+                  <Text style={styles.buttonText}>Cancelar restauração</Text>
+                </Pressable>
+              </View>
+            )}
           </>
         )}
 
@@ -473,6 +584,7 @@ const styles = StyleSheet.create({
   input: { minHeight: 48, borderWidth: 1, borderColor: '#D7CBD0', paddingHorizontal: 13, borderRadius: 12, color: '#454654', backgroundColor: '#FFFFFF' },
   button: { minHeight: 49, backgroundColor: '#F7DDE6', justifyContent: 'center', alignItems: 'center', borderRadius: 14, paddingHorizontal: 14 },
   secondaryButton: { minHeight: 45, backgroundColor: '#EEEAF4', justifyContent: 'center', alignItems: 'center', borderRadius: 13, paddingHorizontal: 14 },
+  dangerButton: { minHeight: 49, backgroundColor: '#E7B2BC', justifyContent: 'center', alignItems: 'center', borderRadius: 14, paddingHorizontal: 14 },
   disabled: { opacity: 0.45 },
   buttonText: { color: '#454654', fontSize: 14, fontWeight: '700', textAlign: 'center' },
   link: { color: '#80627B', fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' },
