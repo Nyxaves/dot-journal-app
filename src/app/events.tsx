@@ -27,8 +27,23 @@ import {
   listEventsByDate,
   updateEvent,
   type EventType,
+  type EventRecurrence,
   type JournalEvent,
 } from '../database/eventRepository';
+import { syncEventReminders } from '../services/eventReminderService';
+
+const RECURRENCES: { value: EventRecurrence; label: string }[] = [
+  { value: 'none', label: 'Não repetir' },
+  { value: 'weekly', label: 'Semanal' },
+  { value: 'monthly', label: 'Mensal' },
+  { value: 'yearly', label: 'Anual' },
+];
+const REMINDERS = [
+  { value: null, label: 'Sem aviso' },
+  { value: 0, label: 'No horário' },
+  { value: 10, label: '10 min antes' },
+  { value: 60, label: '1 h antes' },
+] as const;
 
 const C = {
   paper: '#FAF7F0',
@@ -130,10 +145,17 @@ export default function EventsScreen() {
   const [endTime, setEndTime] = useState('');
   const [type, setType] = useState<EventType>('appointment');
   const [description, setDescription] = useState('');
+  const [recurrence, setRecurrence] = useState<EventRecurrence>('none');
+  const [reminderMinutes, setReminderMinutes] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Atualiza avisos ao reabrir a agenda (inclusive após a primeira ocorrência futura).
+  useFocusEffect(useCallback(() => {
+    void syncEventReminders().catch((err) => console.warn('Falha ao sincronizar avisos:', err));
+  }, []));
 
   const reload = useCallback(async () => {
     const data = await listEventsByDate(selectedDate);
@@ -182,6 +204,8 @@ export default function EventsScreen() {
     setEndTime('');
     setType('appointment');
     setDescription('');
+    setRecurrence('none');
+    setReminderMinutes(null);
     setEventDate(selectedDate);
     setShowDatePicker(false);
   }
@@ -193,7 +217,9 @@ export default function EventsScreen() {
     setEndTime(event.endTime ?? '');
     setType(event.type);
     setDescription(event.description);
-    setEventDate(event.date);
+    setRecurrence(event.recurrence);
+    setReminderMinutes(event.reminderMinutes);
+    setEventDate(event.seriesDate ?? event.date);
   }
 
   
@@ -246,6 +272,8 @@ async function saveEvent() {
       endTime: normalizedEnd,
       type,
       description: description.trim(),
+      recurrence,
+      reminderMinutes,
     };
 
     if (editingId) {
@@ -264,6 +292,8 @@ async function saveEvent() {
     setEndTime('');
     setType('appointment');
     setDescription('');
+    setRecurrence('none');
+    setReminderMinutes(null);
     setShowDatePicker(false);
 
     // Atualiza o dia exibido na agenda.
@@ -274,6 +304,17 @@ async function saveEvent() {
     }
 
     setEventDate(targetDate);
+    try {
+      const result = await syncEventReminders();
+      if (!result.permissions) {
+        Alert.alert('Evento salvo', 'O evento foi salvo, mas as notificações não têm permissão no aparelho.');
+        return;
+      }
+    } catch (notificationError) {
+      console.warn('Falha ao sincronizar notificações de eventos:', notificationError);
+      Alert.alert('Evento salvo', 'Não foi possível atualizar os avisos. Verifique as permissões e tente novamente.');
+      return;
+    }
 
     Alert.alert(
       'Sucesso!',
@@ -303,6 +344,8 @@ async function saveEvent() {
             void (async () => {
               try {
                 await deleteEvent(event.id);
+                try { await syncEventReminders(); }
+                catch (e) { console.warn('Avisos não sincronizados:', e); }
                 await reload();
                 if (editingId === event.id) resetForm();
               } catch (err) {
@@ -484,6 +527,35 @@ async function saveEvent() {
             ))}
         </View>
 
+          <Text style={styles.label}>Repetir evento</Text>
+          <View style={styles.typeRow}>
+            {RECURRENCES.map((item) => (
+              <Pressable key={item.value} onPress={() => {
+                setRecurrence(item.value);
+                if (item.value !== 'none' && reminderMinutes !== null && reminderMinutes !== 0) {
+                  setReminderMinutes(0);
+                }
+              }} style={[styles.typeButton, recurrence === item.value && styles.selectedType]}>
+                <Text style={styles.typeText}>{item.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.label}>Aviso de compromisso</Text>
+          <View style={styles.typeRow}>
+            {REMINDERS.filter(r => recurrence === 'none' || r.value === null || r.value === 0).map((item) => (
+              <Pressable key={String(item.value)} onPress={() => setReminderMinutes(item.value)}
+                style={[styles.typeButton, reminderMinutes === item.value && styles.selectedType]}>
+                <Text style={styles.typeText}>{item.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          {recurrence !== 'none' && (
+            <Text style={styles.subtitle}>Editar ou excluir um evento recorrente altera toda a série. Avisos recorrentes são enviados no horário do evento.</Text>
+          )}
+          {reminderMinutes !== null && !time && (
+            <Text style={styles.subtitle}>Sem horário definido: o aviso será às 09:00.</Text>
+          )}
+
           <TextInput
             style={[styles.input, styles.description]}
             placeholder="Descrição (opcional)"
@@ -531,6 +603,12 @@ async function saveEvent() {
           events.map((event) => (
             <View key={event.id} style={styles.eventCard}>
               <Text style={styles.eventTitle}>{event.title}</Text>
+              {event.recurrence !== 'none' && (
+                <Text style={styles.eventMeta}>↻ {RECURRENCES.find(r => r.value === event.recurrence)?.label ?? 'Recorrente'}</Text>
+              )}
+              {event.reminderMinutes !== null && (
+                <Text style={styles.eventMeta}>🔔 {event.reminderMinutes === 0 ? 'No horário' : `${event.reminderMinutes} min antes`}</Text>
+              )}
               <Text style={styles.eventMeta}>
                 {event.time
                     ? event.endTime
