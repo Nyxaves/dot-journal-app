@@ -121,3 +121,28 @@ A central de backup permite restaurar um arquivo criptografado `.djbackup` do bu
 - Proteção contra envio automático de banco vazio em um aparelho recém-configurado.
 
 A restauração substitui o banco inteiro e não mescla registros. Após a conclusão, feche completamente e reabra o aplicativo. Consulte `docs/FASE-17-RESTAURACAO-NUVEM.md`.
+
+## Instalação pessoal no Android
+
+O Dot Journal é um aplicativo pessoal para Android, construído com React Native, Expo, TypeScript e SQLite. O banco principal fica no aparelho. Supabase Auth e Storage são utilizados para armazenar backups privados criptografados.
+
+Para gerar um APK de teste/uso pessoal com a configuração existente:
+
+```powershell
+npx tsc --noEmit
+node --test tests/*.test.mjs
+npx expo install --check
+npx eas-cli@latest build --platform android --profile preview
+```
+
+Instale o novo APK por cima do aplicativo existente. Não desinstale ou limpe os dados antes de garantir um backup recuperável.
+
+### Proteção dos dados
+
+- Crie um backup manual antes de trocar de aparelho ou reinstalar.
+- Confira a pré-visualização e a integridade do arquivo antes de uma restauração.
+- Guarde a chave de recuperação em local seguro fora do celular.
+- Não versionar `.env.local`, chaves, senhas nem backups pessoais.
+- A restauração substitui integralmente o banco local.
+
+Veja [Guia de entrega Android](docs/FASE-19-ENTREGA-ANDROID.md) e [Auditoria da Fase 18](docs/FASE-18-AUDITORIA-FINAL.md).
